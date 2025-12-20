@@ -63,8 +63,7 @@
         // --- КОНФИГУРАЦИЯ ---
         const SUPABASE_URL = 'https://nneccwuagyietimdqmoa.supabase.co';
         
-        // ВАЖНО: Если ты видишь только себя или нули — значит этот ключ PUBLIC.
-        // Для админки нужен SERVICE_ROLE_KEY.
+        // ВАЖНО: Service Role Key (для полного доступа к данным)
         const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5uZWNjd3VhZ3lpZXRpbWRxbW9hIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc2NTUzMTE2NCwiZXhwIjoyMDgxMTA3MTY0fQ.AGKhn9yCRagMk7XdNWlJ0O5Qd8ZjOehReOkap_VzjQ4'; 
         
         const WEBHOOK_GIFT = 'https://proshein.com/webhook/admin-gift';
@@ -232,6 +231,7 @@
                 <div class="bg-white/5 p-3 rounded-xl space-y-1">
                     <p class="label mb-2">Получатель</p>
                     <p class="text-xs text-white font-bold" id="modalClientName">Name</p>
+                    <p class="text-xs text-gray-300" id="modalClientPhone">Phone</p> <!-- Телефон -->
                     <p class="text-xs text-gray-400">ID: <span id="modalClientId" class="select-all text-blue cursor-pointer">123</span></p>
                     <p class="text-xs text-gray-400" id="modalOrderDate">Date</p>
                 </div>
@@ -452,7 +452,7 @@
                         </div>
                         <div>
                             <p class="font-bold text-xs text-white">#${o.id.slice(0,6).toUpperCase()}</p>
-                            <p class="text-[10px] text-gray-500">${o.recipient_name || 'Клиент'}</p>
+                            <p class="text-[10px] text-gray-500">${o.recipient_name || o.contact_name || 'Клиент'}</p>
                         </div>
                     </div>
                     <div class="text-right">
@@ -536,7 +536,12 @@
             document.getElementById('modalOrderProfit').innerText = formatMoney(profit);
             document.getElementById('modalOrderTotal').innerText = formatMoney(order.total_amount);
             
-            document.getElementById('modalClientName').innerText = order.recipient_name || order.user_info?.name || 'Не указано';
+            // ПРИОРИТЕТ полей: contact_name -> recipient_name -> user_info.name
+            const name = order.contact_name || order.recipient_name || order.user_info?.name || 'Не указано';
+            const phone = order.contact_phone || order.recipient_phone || order.user_info?.phone || '';
+
+            document.getElementById('modalClientName').innerText = name;
+            document.getElementById('modalClientPhone').innerText = phone;
             document.getElementById('modalClientId').innerText = order.telegram_id || 'ID скрыт';
             document.getElementById('modalOrderDate').innerText = new Date(order.created_at).toLocaleString();
 
@@ -639,4 +644,3 @@
     </script>
 </body>
 </html>
-

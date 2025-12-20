@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>WIBE Admin Pro</title>
+    <title>WIBE Admin</title>
     
     <!-- LIBRARIES -->
     <script src="https://cdn.tailwindcss.com"></script>
@@ -24,7 +24,8 @@
             transition: transform 0.2s, background-color 0.2s;
             border: 1px solid rgba(255,255,255,0.05);
         }
-        .bento-card.interactive:active { transform: scale(0.98); background-color: #2c2c2e; }
+        .bento-card.interactive:active { transform: scale(0.98); background-color: #252527; }
+        .bento-card.interactive:hover { border-color: rgba(255,255,255,0.1); }
         
         /* MODAL */
         .modal-overlay {
@@ -62,14 +63,14 @@
         // --- КОНФИГУРАЦИЯ ---
         const SUPABASE_URL = 'https://nneccwuagyietimdqmoa.supabase.co';
         
-        // 🛑 ВСТАВЬ СЮДА СВОЙ SERVICE_ROLE_KEY (Иначе не увидишь всех юзеров)
+        // ВАЖНО: Если ты видишь только себя или нули — значит этот ключ PUBLIC.
+        // Для админки нужен SERVICE_ROLE_KEY.
         const SUPABASE_KEY = 'sb_publishable_XXlH7FK9kLpQcvOQ0LQWWg_6gp8qKXZ'; 
         
         const WEBHOOK_GIFT = 'https://proshein.com/webhook/admin-gift';
         
-        if (!SUPABASE_KEY) alert('⚠️ Вставьте SERVICE_ROLE_KEY в код (строка 46)');
         const { createClient } = supabase;
-        const sb = createClient(SUPABASE_URL, SUPABASE_KEY || 'placeholder');
+        const sb = createClient(SUPABASE_URL, SUPABASE_KEY);
 
         // Глобальные переменные данных
         let G_ORDERS = [];
@@ -178,7 +179,7 @@
                 <div class="space-y-2">
                     <input id="giftTgId" type="text" placeholder="ID (12345...)" class="w-full bg-black/30 border border-white/10 rounded-lg px-3 py-2 text-xs text-white outline-none focus:border-green-500">
                     <div class="flex gap-2">
-                        <input id="giftAmount" type="number" placeholder="₽" class="w-1/2 bg-black/30 border border-white/10 rounded-lg px-3 py-2 text-xs text-white outline-none">
+                        <input id="giftAmount" type="number" placeholder="Сумма" class="w-1/2 bg-black/30 border border-white/10 rounded-lg px-3 py-2 text-xs text-white outline-none">
                         <select id="giftPrefix" class="w-1/2 bg-black/30 border border-white/10 rounded-lg px-2 py-2 text-xs text-white outline-none">
                             <option value="GIFT">GIFT</option>
                             <option value="VIP">VIP</option>
@@ -304,9 +305,10 @@
                     <p class="label">Оборот (За все время)</p>
                     <p class="text-xl font-bold text-white" id="modalTotalRevenue">0 ₽</p>
                 </div>
+                
                 <div class="grid grid-cols-2 gap-3 text-xs text-gray-400">
-                    <div class="bg-white/5 p-3 rounded-lg"><p>Расходы на выкуп</p><b class="text-white" id="modalTotalGoods">0 ₽</b></div>
-                    <div class="bg-white/5 p-3 rounded-lg"><p>Расходы на логистику</p><b class="text-white" id="modalTotalLogistics">0 ₽</b></div>
+                    <div class="bg-white/5 p-3 rounded-lg"><p class="label">За этот год (2025)</p><b class="text-white text-lg" id="modalYearProfit">0 ₽</b></div>
+                    <div class="bg-white/5 p-3 rounded-lg"><p class="label">Логистика (Всего)</p><b class="text-white" id="modalTotalLogistics">0 ₽</b></div>
                 </div>
             </div>
         </div>
@@ -317,10 +319,9 @@
     <script>
         const formatMoney = (val) => Math.floor(val || 0).toLocaleString('ru-RU') + ' ₽';
         
-        // Оценка прибыли с заказа (Эвристика)
+        // Оценка прибыли с заказа (Эвристика: 60% выкуп + 450р доставка + 10% налоги)
         const calcOrderProfit = (order) => {
             const total = order.total_amount || 0;
-            // 60% выкуп, 450р доставка, 7% налог, 3% эквайринг
             const costs = (total * 0.6) + 450 + (total * 0.10);
             return Math.floor(total - costs);
         };
@@ -332,9 +333,9 @@
             status.innerText = 'Обновление...';
 
             try {
-                // 1. Грузим данные
+                // 1. Грузим данные (ИСПРАВЛЕНО: добавил order_items)
                 const [ordersReq, usersReq, itemsReq] = await Promise.all([
-                    sb.from('orders').select('*').order('created_at', { ascending: false }),
+                    sb.from('orders').select('*, order_items(*)').order('created_at', { ascending: false }),
                     sb.from('users').select('*'),
                     sb.from('cart_items').select('*', { count: 'exact', head: true })
                 ]);
@@ -364,16 +365,17 @@
         function calculateFinancials(orders) {
             const now = new Date();
             const currentMonth = now.getMonth(); 
+            const currentYear = now.getFullYear();
             const validOrders = orders.filter(o => o.status !== 'cancelled');
             
             // Месяц
-            const monthOrders = validOrders.filter(o => new Date(o.created_at).getMonth() === currentMonth);
+            const monthOrders = validOrders.filter(o => new Date(o.created_at).getMonth() === currentMonth && new Date(o.created_at).getFullYear() === currentYear);
             const revenue = monthOrders.reduce((sum, o) => sum + (o.total_amount || 0), 0);
             
             // Расходы (Месяц)
             const goodsCost = revenue * 0.60;
             const logistics = monthOrders.length * 450;
-            const taxAcq = revenue * 0.10; // 10%
+            const taxAcq = revenue * 0.10; 
             const marketing = 30000;
 
             const netProfit = revenue - (goodsCost + logistics + taxAcq + marketing);
@@ -392,10 +394,12 @@
             // TOTALS (Для модалки Profit)
             const totalRev = validOrders.reduce((s,o) => s + (o.total_amount||0), 0);
             const totalProfit = validOrders.reduce((s,o) => s + calcOrderProfit(o), 0);
+            const yearOrders = validOrders.filter(o => new Date(o.created_at).getFullYear() === currentYear);
+            const yearProfit = yearOrders.reduce((s,o) => s + calcOrderProfit(o), 0);
             
             document.getElementById('modalTotalRevenue').innerText = formatMoney(totalRev);
             document.getElementById('modalTotalProfit').innerText = formatMoney(totalProfit);
-            document.getElementById('modalTotalGoods').innerText = formatMoney(totalRev * 0.6);
+            document.getElementById('modalYearProfit').innerText = formatMoney(yearProfit);
             document.getElementById('modalTotalLogistics').innerText = formatMoney(validOrders.length * 450);
         }
 
@@ -407,7 +411,7 @@
             // LTV
             const ltv = total > 0 ? Math.round(totalSpent / total) : 0;
             
-            // CAC (Пример: 30к / новые за месяц)
+            // CAC
             const newUsers = users.filter(u => new Date(u.created_at).getMonth() === new Date().getMonth()).length;
             const cac = newUsers > 0 ? Math.round(30000 / newUsers) : 0;
 
@@ -437,7 +441,7 @@
             active.slice(0, 50).forEach(o => {
                 const div = document.createElement('div');
                 div.className = 'bg-white/5 p-3 rounded-xl border border-white/5 flex justify-between items-center cursor-pointer hover:bg-white/10 transition';
-                div.onclick = () => openOrderModal(o); // Клик открывает модалку
+                div.onclick = () => openOrderModal(o);
 
                 let color = o.status === 'paid' ? 'text-green-400' : 'text-yellow-400';
                 
@@ -485,19 +489,18 @@
             });
         }
 
-        // --- ALL CLIENTS (Логика рендера и поиска) ---
+        // --- ALL CLIENTS ---
         function renderAllClients(filterText = '') {
             const list = document.getElementById('allClientsList');
             list.innerHTML = '';
             
             const search = filterText.toLowerCase();
-            // Фильтруем только тех, кто покупал
             const buyers = G_USERS.filter(u => u.total_spent > 0);
             
             const filtered = buyers.filter(u => 
                 (u.first_name || '').toLowerCase().includes(search) || 
                 String(u.telegram_id).includes(search)
-            ).sort((a,b) => b.total_spent - a.total_spent); // Сортировка по тратам
+            ).sort((a,b) => b.total_spent - a.total_spent);
 
             filtered.slice(0, 100).forEach(u => {
                 const div = document.createElement('div');
@@ -529,16 +532,14 @@
             document.getElementById('modalOrderId').innerText = '#' + order.id.slice(0,8).toUpperCase();
             document.getElementById('modalOrderStatus').innerText = order.status;
             
-            // Расчеты внутри заказа
             const profit = calcOrderProfit(order);
             document.getElementById('modalOrderProfit').innerText = formatMoney(profit);
             document.getElementById('modalOrderTotal').innerText = formatMoney(order.total_amount);
             
             document.getElementById('modalClientName').innerText = order.recipient_name || order.user_info?.name || 'Не указано';
-            document.getElementById('modalClientId').innerText = order.user_id || 'ID скрыт';
+            document.getElementById('modalClientId').innerText = order.telegram_id || 'ID скрыт';
             document.getElementById('modalOrderDate').innerText = new Date(order.created_at).toLocaleString();
 
-            // Товары
             const container = document.getElementById('modalOrderItems');
             container.innerHTML = '';
             (order.order_items || []).forEach(item => {
@@ -551,7 +552,7 @@
                         <p class="text-gray-500">${item.size} / ${item.color}</p>
                     </div>
                     <div class="text-right">
-                        <p class="text-white font-bold">${Math.floor(item.final_price_rub)} ₽</p>
+                        <p class="text-white font-bold">${Math.floor(item.price_at_purchase || item.final_price_rub)} ₽</p>
                         <p class="text-gray-500">x{item.quantity}</p>
                     </div>
                 `;
@@ -571,10 +572,9 @@
                 document.getElementById('modalUserAvatar').style.backgroundImage = `url('${user.photo_url}')`;
             }
 
-            // История заказов юзера
-            const userOrders = G_ORDERS.filter(o => String(o.user_id) === String(user.telegram_id));
+            // ИСПРАВЛЕНИЕ: Ищем по telegram_id
+            const userOrders = G_ORDERS.filter(o => String(o.telegram_id) === String(user.telegram_id));
             
-            // Прибыль с юзера (сумма прибыли со всех его заказов)
             const totalUserProfit = userOrders.reduce((sum, o) => sum + calcOrderProfit(o), 0);
             document.getElementById('modalUserProfit').innerText = formatMoney(totalUserProfit);
 
@@ -612,7 +612,6 @@
             document.getElementById(id).classList.remove('open');
         }
 
-        // Utils
         function copyIdFromModal() {
             const id = document.getElementById('modalUserId').innerText;
             navigator.clipboard.writeText(id);
@@ -620,7 +619,6 @@
         }
 
         async function sendGift() {
-            // ... (То же самое, что и раньше) ...
             const id = document.getElementById('giftTgId').value;
             const amount = document.getElementById('giftAmount').value;
             const prefix = document.getElementById('giftPrefix').value;

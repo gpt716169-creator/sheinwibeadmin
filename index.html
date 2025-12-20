@@ -1,0 +1,441 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>WIBE Admin</title>
+    
+    <!-- СТИЛИ И БИБЛИОТЕКИ -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700;800&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined" rel="stylesheet" />
+    
+    <style>
+        body { font-family: 'Plus Jakarta Sans', sans-serif; background-color: #000; color: white; -webkit-tap-highlight-color: transparent; }
+        
+        /* Bento Grid Styles */
+        .bento-card { 
+            background: #1c1c1e; 
+            border-radius: 24px; 
+            padding: 20px; 
+            position: relative; 
+            overflow: hidden; 
+            transition: transform 0.2s;
+            border: 1px solid rgba(255,255,255,0.05);
+        }
+        .bento-card:active { transform: scale(0.98); }
+        
+        /* Text Utils */
+        .label { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: #8e8e93; margin-bottom: 4px; }
+        .value-lg { font-size: 28px; font-weight: 800; letter-spacing: -0.02em; }
+        .value-md { font-size: 20px; font-weight: 700; }
+        
+        /* Colors */
+        .text-green { color: #30d158; }
+        .text-red { color: #ff453a; }
+        .text-blue { color: #0a84ff; }
+        .text-orange { color: #ff9f0a; }
+        .bg-glass { background: rgba(255, 255, 255, 0.05); }
+
+        /* Scrollbar */
+        ::-webkit-scrollbar { width: 0px; background: transparent; }
+    </style>
+</head>
+<body class="pb-safe">
+
+    <!-- SETUP JS -->
+    <script>
+        // --- КОНФИГУРАЦИЯ ---
+        const SUPABASE_URL = 'https://nneccwuagyietimdqmoa.supabase.co';
+        
+        // ВАЖНО: Вставь сюда свой SERVICE_ROLE_KEY.
+        // Ошибка возникала, потому что здесь был русский текст-заглушка.
+        const SUPABASE_KEY = 'sb_secret_OfOWfEPA5gHGI_8BxVMBug_8X251UT0'; 
+        
+        const WEBHOOK_GIFT = 'https://proshein.com/webhook/admin-gift';
+        // --------------------
+
+        // Проверка наличия ключа
+        if (!SUPABASE_KEY) {
+            alert('ОШИБКА КОНФИГУРАЦИИ:\n\nВы не вставили SUPABASE_KEY в файл admin.html!\nПожалуйста, откройте код и добавьте ключ в строку 48.');
+        }
+
+        // Исправленная инициализация (избегаем конфликта имен)
+        const { createClient } = supabase;
+        // Используем заглушку 'placeholder', если ключа нет, чтобы JS не падал с ошибкой кодировки
+        const sb = createClient(SUPABASE_URL, SUPABASE_KEY || 'placeholder_key');
+    </script>
+
+    <!-- HEADER -->
+    <div class="sticky top-0 z-50 bg-black/80 backdrop-blur-xl border-b border-white/10 px-6 py-4 flex justify-between items-center">
+        <div>
+            <h1 class="text-xl font-black tracking-tight flex items-center gap-2">
+                SHEINWIBE <span class="bg-white/10 text-white text-[10px] px-1.5 py-0.5 rounded border border-white/10">ADMIN</span>
+            </h1>
+            <p class="text-[10px] text-gray-500" id="statusLine">Загрузка...</p>
+        </div>
+        <button onclick="reloadData()" class="w-9 h-9 bg-white/10 rounded-full flex items-center justify-center active:bg-white/20 transition">
+            <span class="material-symbols-outlined text-sm">refresh</span>
+        </button>
+    </div>
+
+    <!-- MAIN CONTENT -->
+    <div class="p-4 max-w-5xl mx-auto space-y-4">
+
+        <!-- ROW 1: MONEY & KEY METRICS -->
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+            
+            <!-- PROFIT BLOCK (BIG) -->
+            <div class="bento-card col-span-1 md:col-span-2 flex flex-col justify-between group">
+                <div class="absolute right-0 top-0 p-6 opacity-10 group-hover:opacity-20 transition">
+                    <span class="material-symbols-outlined text-8xl text-green">paid</span>
+                </div>
+                <div>
+                    <p class="label flex items-center gap-2">
+                        Чистая прибыль (Месяц) 
+                        <span class="text-green bg-green-500/10 px-1.5 rounded" id="marginLabel">0%</span>
+                    </p>
+                    <h2 class="text-4xl md:text-5xl font-black text-white tracking-tight mt-1" id="netProfit">0 ₽</h2>
+                    <p class="text-xs text-gray-500 mt-1">Оборот: <span class="text-white font-bold" id="revenue">0 ₽</span></p>
+                </div>
+                
+                <div class="grid grid-cols-4 gap-2 mt-6 pt-4 border-t border-white/10">
+                    <div>
+                        <p class="label">Налог (6%)</p>
+                        <p class="font-bold text-sm" id="taxCost">0</p>
+                    </div>
+                    <div>
+                        <p class="label">Эквайринг</p>
+                        <p class="font-bold text-sm" id="acqCost">0</p>
+                    </div>
+                    <div>
+                        <p class="label">Выкуп</p>
+                        <p class="font-bold text-sm" id="goodsCost">0</p>
+                    </div>
+                    <div>
+                        <p class="label">Доставка</p>
+                        <p class="font-bold text-sm" id="logCost">0</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- CUSTOMER METRICS -->
+            <div class="flex flex-col gap-4">
+                <div class="bento-card flex-1 flex flex-col justify-center">
+                    <div class="flex justify-between items-end">
+                        <div>
+                            <p class="label text-blue">LTV (Lifetime Value)</p>
+                            <p class="value-md" id="ltv">0 ₽</p>
+                        </div>
+                        <div class="text-right">
+                            <p class="label text-red">CAC</p>
+                            <p class="value-md" id="cac">0 ₽</p>
+                        </div>
+                    </div>
+                    <div class="w-full bg-white/10 h-1 mt-3 rounded-full overflow-hidden flex">
+                        <div class="bg-blue-500 h-full" style="width: 70%"></div>
+                        <div class="bg-red-500 h-full" style="width: 30%"></div>
+                    </div>
+                </div>
+
+                <div class="bento-card flex-1 flex flex-col justify-center">
+                    <div class="flex justify-between items-center">
+                        <div>
+                            <p class="label">Клиентская база</p>
+                            <p class="value-md" id="totalUsers">0</p>
+                        </div>
+                        <div class="text-right">
+                            <p class="label text-green">Retention</p>
+                            <p class="value-md text-green" id="retention">0%</p>
+                        </div>
+                    </div>
+                    <p class="text-[10px] text-gray-500 mt-2">Новых сегодня: <span class="text-white font-bold" id="newUsersToday">+0</span></p>
+                </div>
+            </div>
+        </div>
+
+        <!-- ROW 2: ACTIVE ORDERS & ACTIONS -->
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+            
+            <!-- ACTIVE ORDERS LIST -->
+            <div class="bento-card col-span-1 md:col-span-2 min-h-[300px] flex flex-col">
+                <div class="flex justify-between items-center mb-4">
+                    <p class="label">Активные заказы <span class="text-white bg-white/10 px-1.5 rounded ml-1" id="activeOrdersCount">0</span></p>
+                </div>
+                <div class="overflow-y-auto flex-1 space-y-2 pr-1" id="activeOrdersList">
+                    <!-- Заказы сюда -->
+                    <div class="text-center py-10 text-gray-600 text-xs">Загрузка...</div>
+                </div>
+            </div>
+
+            <!-- ACTIONS PANEL -->
+            <div class="flex flex-col gap-4">
+                
+                <!-- Send Gift -->
+                <div class="bento-card flex-1 bg-[#2c2c2e]">
+                    <p class="label mb-3 text-white flex items-center gap-1"><span class="material-symbols-outlined text-sm text-pink-500">card_giftcard</span> Подарить купон</p>
+                    <div class="space-y-2">
+                        <input id="giftTgId" type="text" placeholder="Telegram ID" class="w-full bg-black/30 border border-white/10 rounded-lg px-3 py-2 text-xs text-white outline-none focus:border-green-500">
+                        <div class="flex gap-2">
+                            <input id="giftAmount" type="number" placeholder="Сумма" class="w-1/2 bg-black/30 border border-white/10 rounded-lg px-3 py-2 text-xs text-white outline-none">
+                            <select id="giftPrefix" class="w-1/2 bg-black/30 border border-white/10 rounded-lg px-2 py-2 text-xs text-white outline-none">
+                                <option value="GIFT">GIFT</option>
+                                <option value="VIP">VIP</option>
+                                <option value="SORRY">SORRY</option>
+                            </select>
+                        </div>
+                        <button onclick="sendGift()" id="btnGift" class="w-full bg-white text-black font-bold text-xs py-2.5 rounded-lg active:scale-95 transition hover:bg-gray-200">
+                            Отправить
+                        </button>
+                    </div>
+                </div>
+
+                <!-- API Stats -->
+                <div class="bento-card h-auto">
+                    <div class="flex items-center gap-3">
+                        <div class="w-10 h-10 rounded-full bg-purple-500/20 flex items-center justify-center text-purple-400">
+                            <span class="material-symbols-outlined text-lg">api</span>
+                        </div>
+                        <div>
+                            <p class="value-md" id="apiCalls">0</p>
+                            <p class="text-[10px] text-gray-500">Товаров в базе</p>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+
+        <!-- ROW 3: TOP CLIENTS -->
+        <div class="bento-card">
+            <p class="label mb-4 text-yellow-500">🏆 Топ клиентов (Platinum)</p>
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4" id="topClientsList">
+                <!-- Clients Here -->
+            </div>
+        </div>
+
+    </div>
+
+    <!-- LOGIC SCRIPT -->
+    <script>
+        const formatMoney = (val) => Math.floor(val).toLocaleString('ru-RU') + ' ₽';
+
+        // --- ГЛАВНАЯ ФУНКЦИЯ ---
+        async function reloadData() {
+            const status = document.getElementById('statusLine');
+            
+            // Если ключа нет, не пытаемся грузить
+            if (!SUPABASE_KEY) {
+                status.innerText = 'Нет ключа API';
+                status.className = 'text-[10px] text-red-500';
+                return;
+            }
+
+            status.innerText = 'Обновление данных...';
+            status.className = 'text-[10px] text-yellow-500 animate-pulse';
+
+            try {
+                // 1. ЗАГРУЗКА ВСЕГО (Параллельно для скорости)
+                const [ordersReq, usersReq, itemsReq] = await Promise.all([
+                    sb.from('orders').select('*').order('created_at', { ascending: false }),
+                    sb.from('users').select('*'),
+                    sb.from('cart_items').select('*', { count: 'exact', head: true })
+                ]);
+
+                if (ordersReq.error) throw ordersReq.error;
+                if (usersReq.error) throw usersReq.error;
+
+                const orders = ordersReq.data;
+                const users = usersReq.data;
+                const itemsCount = itemsReq.count;
+
+                // --- 2. РАСЧЕТЫ ---
+                calculateFinancials(orders);
+                calculateUserMetrics(users);
+                renderActiveOrders(orders);
+                renderTopClients(users);
+
+                // API Stats
+                document.getElementById('apiCalls').innerText = itemsCount.toLocaleString();
+
+                status.innerText = 'Обновлено: ' + new Date().toLocaleTimeString();
+                status.className = 'text-[10px] text-green-500';
+
+            } catch (e) {
+                console.error(e);
+                status.innerText = 'Ошибка: ' + e.message;
+                status.className = 'text-[10px] text-red-500';
+            }
+        }
+
+        // --- ФИНАНСЫ ---
+        function calculateFinancials(orders) {
+            const now = new Date();
+            const currentMonth = now.getMonth(); // 0-11
+
+            // Берем заказы за текущий месяц, которые НЕ отменены
+            const validOrders = orders.filter(o => o.status !== 'cancelled');
+            const monthOrders = validOrders.filter(o => new Date(o.created_at).getMonth() === currentMonth);
+
+            // Оборот (Revenue)
+            const revenue = monthOrders.reduce((sum, o) => sum + (o.total_amount || 0), 0);
+
+            // Эвристика расходов (Раз нет точной бухгалтерии, считаем по модели)
+            const goodsCost = revenue * 0.60;  // 60% - Закуп
+            const logistics = monthOrders.length * 450; // 450р - Доставка
+            const tax = revenue * 0.07; // 6% + 1%
+            const acquiring = revenue * 0.03; // 3%
+            const marketing = 30000; // Фикс бюджет (или бери из базы если есть)
+
+            const totalExpenses = goodsCost + logistics + tax + acquiring + marketing;
+            const netProfit = revenue - totalExpenses;
+            const margin = revenue > 0 ? Math.round((netProfit / revenue) * 100) : 0;
+
+            // UI
+            document.getElementById('revenue').innerText = formatMoney(revenue);
+            document.getElementById('netProfit').innerText = formatMoney(netProfit);
+            document.getElementById('marginLabel').innerText = margin + '%';
+            
+            // Расходы
+            document.getElementById('taxCost').innerText = formatMoney(tax);
+            document.getElementById('acqCost').innerText = formatMoney(acquiring);
+            document.getElementById('goodsCost').innerText = formatMoney(goodsCost);
+            document.getElementById('logCost').innerText = formatMoney(logistics);
+        }
+
+        // --- МЕТРИКИ КЛИЕНТОВ ---
+        function calculateUserMetrics(users) {
+            const total = users.length;
+            
+            // LTV = Общие траты / Кол-во юзеров
+            const totalSpentAll = users.reduce((sum, u) => sum + (u.total_spent || 0), 0);
+            const ltv = total > 0 ? Math.round(totalSpentAll / total) : 0;
+
+            // CAC (Маркетинг / Новые юзеры за месяц)
+            const newUsersMonth = users.filter(u => new Date(u.created_at).getMonth() === new Date().getMonth()).length;
+            const cac = newUsersMonth > 0 ? Math.round(30000 / newUsersMonth) : 0; // 30000 - бюджет
+
+            // Retention (Кто покупал за последние 60 дней / Всего)
+            const activeDate = new Date(); activeDate.setDate(activeDate.getDate() - 60);
+            const activeUsers = users.filter(u => u.last_purchase_at && new Date(u.last_purchase_at) > activeDate).length;
+            const retention = total > 0 ? Math.round((activeUsers / total) * 100) : 0;
+
+            // New Today
+            const today = new Date().toISOString().split('T')[0];
+            const newToday = users.filter(u => u.created_at && u.created_at.startsWith(today)).length;
+
+            // UI
+            document.getElementById('totalUsers').innerText = total.toLocaleString();
+            document.getElementById('ltv').innerText = ltv + ' ₽';
+            document.getElementById('cac').innerText = cac + ' ₽';
+            document.getElementById('retention').innerText = retention + '%';
+            document.getElementById('newUsersToday').innerText = `+${newToday}`;
+        }
+
+        // --- АКТИВНЫЕ ЗАКАЗЫ ---
+        function renderActiveOrders(orders) {
+            const list = document.getElementById('activeOrdersList');
+            list.innerHTML = '';
+
+            const active = orders.filter(o => !['delivered', 'completed', 'cancelled'].includes(o.status));
+            document.getElementById('activeOrdersCount').innerText = active.length;
+
+            if (active.length === 0) {
+                list.innerHTML = '<div class="text-center text-gray-600 text-xs py-10">Нет активных заказов</div>';
+                return;
+            }
+
+            active.slice(0, 20).forEach(o => {
+                const div = document.createElement('div');
+                div.className = 'bg-white/5 p-3 rounded-xl border border-white/5 flex justify-between items-center';
+                
+                let statusColor = 'text-gray-400';
+                if(o.status === 'paid') statusColor = 'text-green-400';
+                if(o.status === 'shipped') statusColor = 'text-blue-400';
+                if(o.status === 'processing') statusColor = 'text-yellow-400';
+
+                div.innerHTML = `
+                    <div class="flex items-center gap-3">
+                        <div class="w-10 h-10 rounded-full bg-[#2c2c2e] flex items-center justify-center text-[10px] font-bold text-gray-400">
+                            ${o.delivery_method?.includes('5Post') ? '5P' : 'RF'}
+                        </div>
+                        <div>
+                            <p class="font-bold text-sm text-white">${formatMoney(o.total_amount)}</p>
+                            <p class="text-[10px] text-gray-500">ID: ${o.id.slice(0,6).toUpperCase()} • ${o.recipient_name || 'Клиент'}</p>
+                        </div>
+                    </div>
+                    <span class="text-[10px] uppercase font-bold ${statusColor} bg-white/5 px-2 py-1 rounded">${o.status}</span>
+                `;
+                list.appendChild(div);
+            });
+        }
+
+        // --- ТОП КЛИЕНТЫ ---
+        function renderTopClients(users) {
+            const list = document.getElementById('topClientsList');
+            list.innerHTML = '';
+
+            const top = users.sort((a,b) => b.total_spent - a.total_spent).slice(0, 3);
+
+            top.forEach(u => {
+                const div = document.createElement('div');
+                div.className = 'bg-white/5 p-3 rounded-xl flex justify-between items-center';
+                div.innerHTML = `
+                    <div class="flex items-center gap-3">
+                        <div class="w-8 h-8 rounded-full bg-gray-700 bg-cover bg-center" style="background-image: url('${u.photo_url || ''}')"></div>
+                        <div>
+                            <p class="text-xs font-bold text-white">${u.first_name || 'User'}</p>
+                            <p class="text-[9px] text-gray-500">ID: ${u.telegram_id}</p>
+                        </div>
+                    </div>
+                    <div class="text-right">
+                        <p class="text-xs font-bold text-white">${formatMoney(u.total_spent)}</p>
+                        <p class="text-[9px] text-yellow-500 font-bold">${u.status_level}</p>
+                    </div>
+                `;
+                list.appendChild(div);
+            });
+        }
+
+        // --- ОТПРАВКА ПОДАРКА ---
+        async function sendGift() {
+            const id = document.getElementById('giftTgId').value;
+            const amount = document.getElementById('giftAmount').value;
+            const prefix = document.getElementById('giftPrefix').value;
+            const btn = document.getElementById('btnGift');
+
+            if (!id || !amount) return alert('Введите ID и сумму');
+
+            btn.innerText = 'Отправка...';
+            btn.disabled = true;
+
+            try {
+                // Отправляем на n8n
+                const res = await fetch(WEBHOOK_GIFT, {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ user_id: id, amount: amount, prefix: prefix })
+                });
+                
+                if (res.ok) {
+                    alert('🎁 Купон успешно отправлен!');
+                    document.getElementById('giftTgId').value = '';
+                    document.getElementById('giftAmount').value = '';
+                } else {
+                    throw new Error('Ошибка сети');
+                }
+            } catch (e) {
+                alert('Ошибка отправки: ' + e.message);
+            } finally {
+                btn.innerText = 'Отправить';
+                btn.disabled = false;
+            }
+        }
+
+        // Запускаем при старте
+        reloadData();
+
+    </script>
+</body>
+</html>

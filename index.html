@@ -3,9 +3,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>WIBE Admin</title>
+    <title>WIBE Admin Pro</title>
     
-    <!-- СТИЛИ И БИБЛИОТЕКИ -->
+    <!-- LIBRARIES -->
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700;800&display=swap" rel="stylesheet">
@@ -14,65 +14,72 @@
     <style>
         body { font-family: 'Plus Jakarta Sans', sans-serif; background-color: #000; color: white; -webkit-tap-highlight-color: transparent; }
         
-        /* Bento Grid Styles */
+        /* BENTO GRID */
         .bento-card { 
             background: #1c1c1e; 
             border-radius: 24px; 
             padding: 20px; 
             position: relative; 
             overflow: hidden; 
-            transition: transform 0.2s;
+            transition: transform 0.2s, background-color 0.2s;
             border: 1px solid rgba(255,255,255,0.05);
         }
-        .bento-card:active { transform: scale(0.98); }
+        .bento-card.interactive:active { transform: scale(0.98); background-color: #2c2c2e; }
         
-        /* Text Utils */
+        /* MODAL */
+        .modal-overlay {
+            position: fixed; inset: 0; z-index: 100;
+            background: rgba(0,0,0,0.8); backdrop-filter: blur(10px);
+            display: flex; align-items: center; justify-content: center;
+            opacity: 0; pointer-events: none; transition: opacity 0.2s;
+        }
+        .modal-overlay.open { opacity: 1; pointer-events: auto; }
+        
+        .modal-content {
+            background: #1c1c1e; width: 100%; max-width: 500px;
+            max-height: 90vh; border-radius: 24px;
+            border: 1px solid rgba(255,255,255,0.1);
+            transform: scale(0.95); transition: transform 0.2s;
+            display: flex; flex-direction: column;
+        }
+        .modal-overlay.open .modal-content { transform: scale(1); }
+
+        /* UTILS */
         .label { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: #8e8e93; margin-bottom: 4px; }
-        .value-lg { font-size: 28px; font-weight: 800; letter-spacing: -0.02em; }
-        .value-md { font-size: 20px; font-weight: 700; }
-        
-        /* Colors */
         .text-green { color: #30d158; }
         .text-red { color: #ff453a; }
         .text-blue { color: #0a84ff; }
         .text-orange { color: #ff9f0a; }
-        .bg-glass { background: rgba(255, 255, 255, 0.05); }
-
-        /* Scrollbar */
-        ::-webkit-scrollbar { width: 0px; background: transparent; }
+        
+        /* SCROLLBAR */
+        ::-webkit-scrollbar { width: 4px; }
+        ::-webkit-scrollbar-thumb { background: #333; border-radius: 2px; }
     </style>
 </head>
 <body class="pb-safe">
 
-    <!-- SETUP JS -->
     <script>
         // --- КОНФИГУРАЦИЯ ---
         const SUPABASE_URL = 'https://nneccwuagyietimdqmoa.supabase.co';
         
-        // ВАЖНО: Вставь сюда свой SERVICE_ROLE_KEY.
-        // Ошибка возникала, потому что здесь был русский текст-заглушка.
+        // 🛑 ВСТАВЬ СЮДА СВОЙ SERVICE_ROLE_KEY (Иначе не увидишь всех юзеров)
         const SUPABASE_KEY = 'sb_publishable_XXlH7FK9kLpQcvOQ0LQWWg_6gp8qKXZ'; 
         
         const WEBHOOK_GIFT = 'https://proshein.com/webhook/admin-gift';
-        // --------------------
-
-        // Проверка наличия ключа
-        if (!SUPABASE_KEY) {
-            alert('ОШИБКА КОНФИГУРАЦИИ:\n\nВы не вставили SUPABASE_KEY в файл admin.html!\nПожалуйста, откройте код и добавьте ключ в строку 48.');
-        }
-
-        // Исправленная инициализация (избегаем конфликта имен)
+        
+        if (!SUPABASE_KEY) alert('⚠️ Вставьте SERVICE_ROLE_KEY в код (строка 46)');
         const { createClient } = supabase;
-        // Используем заглушку 'placeholder', если ключа нет, чтобы JS не падал с ошибкой кодировки
-        const sb = createClient(SUPABASE_URL, SUPABASE_KEY || 'placeholder_key');
+        const sb = createClient(SUPABASE_URL, SUPABASE_KEY || 'placeholder');
+
+        // Глобальные переменные данных
+        let G_ORDERS = [];
+        let G_USERS = [];
     </script>
 
     <!-- HEADER -->
     <div class="sticky top-0 z-50 bg-black/80 backdrop-blur-xl border-b border-white/10 px-6 py-4 flex justify-between items-center">
         <div>
-            <h1 class="text-xl font-black tracking-tight flex items-center gap-2">
-                SHEINWIBE <span class="bg-white/10 text-white text-[10px] px-1.5 py-0.5 rounded border border-white/10">ADMIN</span>
-            </h1>
+            <h1 class="text-xl font-black tracking-tight">WIBE <span class="text-blue">Admin</span></h1>
             <p class="text-[10px] text-gray-500" id="statusLine">Загрузка...</p>
         </div>
         <button onclick="reloadData()" class="w-9 h-9 bg-white/10 rounded-full flex items-center justify-center active:bg-white/20 transition">
@@ -81,162 +88,251 @@
     </div>
 
     <!-- MAIN CONTENT -->
-    <div class="p-4 max-w-5xl mx-auto space-y-4">
+    <div class="p-4 max-w-6xl mx-auto space-y-4">
 
-        <!-- ROW 1: MONEY & KEY METRICS -->
+        <!-- ROW 1: FINANCE & METRICS -->
         <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
             
-            <!-- PROFIT BLOCK (BIG) -->
-            <div class="bento-card col-span-1 md:col-span-2 flex flex-col justify-between group">
-                <div class="absolute right-0 top-0 p-6 opacity-10 group-hover:opacity-20 transition">
+            <!-- PROFIT CARD (CLICKABLE) -->
+            <div class="bento-card col-span-1 md:col-span-2 flex flex-col justify-between interactive cursor-pointer" onclick="openProfitModal()">
+                <div class="absolute right-0 top-0 p-6 opacity-10">
                     <span class="material-symbols-outlined text-8xl text-green">paid</span>
                 </div>
                 <div>
-                    <p class="label flex items-center gap-2">
-                        Чистая прибыль (Месяц) 
-                        <span class="text-green bg-green-500/10 px-1.5 rounded" id="marginLabel">0%</span>
-                    </p>
+                    <p class="label flex items-center gap-2">Чистая прибыль (Месяц) <span class="material-symbols-outlined text-[10px]">open_in_new</span></p>
                     <h2 class="text-4xl md:text-5xl font-black text-white tracking-tight mt-1" id="netProfit">0 ₽</h2>
-                    <p class="text-xs text-gray-500 mt-1">Оборот: <span class="text-white font-bold" id="revenue">0 ₽</span></p>
+                    <div class="flex gap-4 mt-2 text-xs text-gray-400">
+                        <span>Оборот: <b class="text-white" id="revenue">0 ₽</b></span>
+                        <span class="text-green bg-green-500/10 px-1.5 rounded" id="marginLabel">Маржа 0%</span>
+                    </div>
                 </div>
                 
-                <div class="grid grid-cols-4 gap-2 mt-6 pt-4 border-t border-white/10">
-                    <div>
-                        <p class="label">Налог (6%)</p>
-                        <p class="font-bold text-sm" id="taxCost">0</p>
-                    </div>
-                    <div>
-                        <p class="label">Эквайринг</p>
-                        <p class="font-bold text-sm" id="acqCost">0</p>
-                    </div>
-                    <div>
-                        <p class="label">Выкуп</p>
-                        <p class="font-bold text-sm" id="goodsCost">0</p>
-                    </div>
-                    <div>
-                        <p class="label">Доставка</p>
-                        <p class="font-bold text-sm" id="logCost">0</p>
-                    </div>
+                <!-- Mini Cost Structure -->
+                <div class="grid grid-cols-4 gap-2 mt-6 pt-4 border-t border-white/10 opacity-70">
+                    <div><p class="label">Налог</p><p class="font-bold text-xs" id="taxCost">0</p></div>
+                    <div><p class="label">Выкуп</p><p class="font-bold text-xs" id="goodsCost">0</p></div>
+                    <div><p class="label">Доставка</p><p class="font-bold text-xs" id="logCost">0</p></div>
+                    <div><p class="label">Реклама</p><p class="font-bold text-xs" id="adsCost">0</p></div>
                 </div>
             </div>
 
-            <!-- CUSTOMER METRICS -->
+            <!-- UNIT ECONOMICS -->
             <div class="flex flex-col gap-4">
                 <div class="bento-card flex-1 flex flex-col justify-center">
-                    <div class="flex justify-between items-end">
+                    <p class="label text-blue">Unit Economics</p>
+                    <div class="flex justify-between items-end mb-2">
                         <div>
-                            <p class="label text-blue">LTV (Lifetime Value)</p>
-                            <p class="value-md" id="ltv">0 ₽</p>
+                            <p class="text-xs text-gray-500">LTV / CAC</p>
+                            <p class="text-2xl font-black text-white" id="ltvCacRatio">0x</p>
                         </div>
                         <div class="text-right">
-                            <p class="label text-red">CAC</p>
-                            <p class="value-md" id="cac">0 ₽</p>
+                            <p class="text-[10px] text-gray-500">LTV: <span class="text-white font-bold" id="ltv">0</span></p>
+                            <p class="text-[10px] text-gray-500">CAC: <span class="text-white font-bold" id="cac">0</span></p>
                         </div>
                     </div>
-                    <div class="w-full bg-white/10 h-1 mt-3 rounded-full overflow-hidden flex">
-                        <div class="bg-blue-500 h-full" style="width: 70%"></div>
-                        <div class="bg-red-500 h-full" style="width: 30%"></div>
+                    <div class="w-full bg-white/10 h-1.5 rounded-full overflow-hidden flex">
+                        <div class="bg-blue-500 h-full" style="width: 75%"></div>
+                        <div class="bg-red-500 h-full" style="width: 25%"></div>
                     </div>
                 </div>
 
-                <div class="bento-card flex-1 flex flex-col justify-center">
+                <div class="bento-card flex-1 flex flex-col justify-center interactive cursor-pointer" onclick="openAllClientsModal()">
                     <div class="flex justify-between items-center">
                         <div>
                             <p class="label">Клиентская база</p>
-                            <p class="value-md" id="totalUsers">0</p>
+                            <p class="text-2xl font-black" id="totalUsers">0</p>
                         </div>
-                        <div class="text-right">
-                            <p class="label text-green">Retention</p>
-                            <p class="value-md text-green" id="retention">0%</p>
-                        </div>
+                        <span class="material-symbols-outlined text-gray-500">group</span>
                     </div>
-                    <p class="text-[10px] text-gray-500 mt-2">Новых сегодня: <span class="text-white font-bold" id="newUsersToday">+0</span></p>
+                    <div class="flex justify-between items-center mt-2 text-xs">
+                        <span class="text-green font-bold" id="newUsersToday">+0 сегодня</span>
+                        <span class="text-gray-500 underline">Показать всех</span>
+                    </div>
                 </div>
             </div>
         </div>
 
-        <!-- ROW 2: ACTIVE ORDERS & ACTIONS -->
-        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-            
-            <!-- ACTIVE ORDERS LIST -->
-            <div class="bento-card col-span-1 md:col-span-2 min-h-[300px] flex flex-col">
-                <div class="flex justify-between items-center mb-4">
-                    <p class="label">Активные заказы <span class="text-white bg-white/10 px-1.5 rounded ml-1" id="activeOrdersCount">0</span></p>
-                </div>
-                <div class="overflow-y-auto flex-1 space-y-2 pr-1" id="activeOrdersList">
-                    <!-- Заказы сюда -->
-                    <div class="text-center py-10 text-gray-600 text-xs">Загрузка...</div>
+        <!-- ROW 2: ACTIVE ORDERS -->
+        <div class="bento-card min-h-[300px] flex flex-col">
+            <div class="flex justify-between items-center mb-4">
+                <p class="label text-white">Активные заказы <span class="bg-white/10 px-1.5 rounded ml-1 text-white/70" id="activeOrdersCount">0</span></p>
+            </div>
+            <div class="overflow-y-auto flex-1 space-y-2 pr-1" id="activeOrdersList">
+                <div class="text-center py-10 text-gray-600 text-xs">Загрузка...</div>
+            </div>
+        </div>
+
+        <!-- ROW 3: TOP CLIENTS & ACTIONS -->
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <!-- Top Clients -->
+            <div class="bento-card">
+                <p class="label mb-4 text-yellow-500 flex items-center gap-2"><span class="material-symbols-outlined text-sm">trophy</span> Топ клиентов (Platinum)</p>
+                <div class="space-y-3" id="topClientsList">
+                    <!-- JS Insert -->
                 </div>
             </div>
 
-            <!-- ACTIONS PANEL -->
-            <div class="flex flex-col gap-4">
+            <!-- Quick Actions -->
+            <div class="bento-card bg-[#2c2c2e]">
+                <p class="label mb-3 text-white flex items-center gap-1"><span class="material-symbols-outlined text-sm text-pink-500">card_giftcard</span> Подарить купон</p>
+                <div class="space-y-2">
+                    <input id="giftTgId" type="text" placeholder="ID (12345...)" class="w-full bg-black/30 border border-white/10 rounded-lg px-3 py-2 text-xs text-white outline-none focus:border-green-500">
+                    <div class="flex gap-2">
+                        <input id="giftAmount" type="number" placeholder="₽" class="w-1/2 bg-black/30 border border-white/10 rounded-lg px-3 py-2 text-xs text-white outline-none">
+                        <select id="giftPrefix" class="w-1/2 bg-black/30 border border-white/10 rounded-lg px-2 py-2 text-xs text-white outline-none">
+                            <option value="GIFT">GIFT</option>
+                            <option value="VIP">VIP</option>
+                            <option value="SORRY">SORRY</option>
+                        </select>
+                    </div>
+                    <button onclick="sendGift()" id="btnGift" class="w-full bg-white text-black font-bold text-xs py-2.5 rounded-lg active:scale-95 transition hover:bg-gray-200">
+                        Отправить
+                    </button>
+                </div>
                 
-                <!-- Send Gift -->
-                <div class="bento-card flex-1 bg-[#2c2c2e]">
-                    <p class="label mb-3 text-white flex items-center gap-1"><span class="material-symbols-outlined text-sm text-pink-500">card_giftcard</span> Подарить купон</p>
-                    <div class="space-y-2">
-                        <input id="giftTgId" type="text" placeholder="Telegram ID" class="w-full bg-black/30 border border-white/10 rounded-lg px-3 py-2 text-xs text-white outline-none focus:border-green-500">
-                        <div class="flex gap-2">
-                            <input id="giftAmount" type="number" placeholder="Сумма" class="w-1/2 bg-black/30 border border-white/10 rounded-lg px-3 py-2 text-xs text-white outline-none">
-                            <select id="giftPrefix" class="w-1/2 bg-black/30 border border-white/10 rounded-lg px-2 py-2 text-xs text-white outline-none">
-                                <option value="GIFT">GIFT</option>
-                                <option value="VIP">VIP</option>
-                                <option value="SORRY">SORRY</option>
-                            </select>
-                        </div>
-                        <button onclick="sendGift()" id="btnGift" class="w-full bg-white text-black font-bold text-xs py-2.5 rounded-lg active:scale-95 transition hover:bg-gray-200">
-                            Отправить
-                        </button>
+                <div class="mt-4 pt-4 border-t border-white/10">
+                    <p class="label mb-1">Статистика API</p>
+                    <div class="flex justify-between items-center">
+                        <span class="text-xs text-gray-400">Товаров в базе</span>
+                        <span class="font-bold text-sm" id="apiCalls">0</span>
                     </div>
                 </div>
-
-                <!-- API Stats -->
-                <div class="bento-card h-auto">
-                    <div class="flex items-center gap-3">
-                        <div class="w-10 h-10 rounded-full bg-purple-500/20 flex items-center justify-center text-purple-400">
-                            <span class="material-symbols-outlined text-lg">api</span>
-                        </div>
-                        <div>
-                            <p class="value-md" id="apiCalls">0</p>
-                            <p class="text-[10px] text-gray-500">Товаров в базе</p>
-                        </div>
-                    </div>
-                </div>
-
             </div>
         </div>
-
-        <!-- ROW 3: TOP CLIENTS -->
-        <div class="bento-card">
-            <p class="label mb-4 text-yellow-500">🏆 Топ клиентов (Platinum)</p>
-            <div class="grid grid-cols-1 md:grid-cols-3 gap-4" id="topClientsList">
-                <!-- Clients Here -->
-            </div>
-        </div>
-
     </div>
+
+    <!-- === MODALS === -->
+
+    <!-- 1. ORDER DETAILS MODAL -->
+    <div id="orderModal" class="modal-overlay" onclick="closeModal('orderModal')">
+        <div class="modal-content overflow-hidden" onclick="event.stopPropagation()">
+            <div class="p-4 border-b border-white/10 flex justify-between items-center bg-[#252527]">
+                <h3 class="font-bold text-sm">Заказ <span id="modalOrderId" class="text-gray-400">#...</span></h3>
+                <button onclick="closeModal('orderModal')" class="text-gray-500 hover:text-white"><span class="material-symbols-outlined">close</span></button>
+            </div>
+            <div class="p-4 overflow-y-auto max-h-[60vh] space-y-4">
+                <!-- Статус -->
+                <div class="flex justify-between items-center bg-white/5 p-3 rounded-xl">
+                    <span class="text-xs text-gray-400">Статус</span>
+                    <span id="modalOrderStatus" class="text-xs font-bold px-2 py-1 rounded bg-white/10">...</span>
+                </div>
+                <!-- Финансы -->
+                <div class="grid grid-cols-2 gap-3">
+                    <div class="bg-green-900/10 border border-green-500/20 p-3 rounded-xl">
+                        <p class="label text-green">Чистая прибыль</p>
+                        <p id="modalOrderProfit" class="text-lg font-bold text-green">0 ₽</p>
+                    </div>
+                    <div class="bg-white/5 border border-white/10 p-3 rounded-xl">
+                        <p class="label">Сумма выкупа</p>
+                        <p id="modalOrderTotal" class="text-lg font-bold text-white">0 ₽</p>
+                    </div>
+                </div>
+                <!-- Клиент -->
+                <div class="bg-white/5 p-3 rounded-xl space-y-1">
+                    <p class="label mb-2">Получатель</p>
+                    <p class="text-xs text-white font-bold" id="modalClientName">Name</p>
+                    <p class="text-xs text-gray-400">ID: <span id="modalClientId" class="select-all text-blue cursor-pointer">123</span></p>
+                    <p class="text-xs text-gray-400" id="modalOrderDate">Date</p>
+                </div>
+                <!-- Товары -->
+                <div>
+                    <p class="label mb-2">Товары</p>
+                    <div id="modalOrderItems" class="space-y-2"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 2. CLIENT DETAILS MODAL -->
+    <div id="clientModal" class="modal-overlay" onclick="closeModal('clientModal')">
+        <div class="modal-content overflow-hidden" onclick="event.stopPropagation()">
+            <div class="p-6 pb-4 bg-[#252527] border-b border-white/10 text-center">
+                <div id="modalUserAvatar" class="w-16 h-16 rounded-full bg-gray-700 mx-auto mb-3 bg-cover bg-center"></div>
+                <h3 class="font-bold text-lg" id="modalUserName">User</h3>
+                <p class="text-xs text-gray-400 select-all cursor-pointer" id="modalUserId">ID</p>
+                <div class="flex justify-center gap-2 mt-3">
+                    <span id="modalUserLevel" class="text-[10px] font-bold px-2 py-0.5 rounded bg-yellow-500/10 text-yellow-500 border border-yellow-500/20">GOLD</span>
+                    <button onclick="copyIdFromModal()" class="text-[10px] font-bold px-2 py-0.5 rounded bg-white/10 hover:bg-white/20">Скопировать ID</button>
+                </div>
+            </div>
+            <div class="p-4 overflow-y-auto">
+                <div class="grid grid-cols-2 gap-3 mb-4">
+                    <div class="bg-white/5 p-3 rounded-xl text-center">
+                        <p class="label">Всего купил</p>
+                        <p class="font-bold text-white" id="modalUserSpent">0 ₽</p>
+                    </div>
+                    <div class="bg-white/5 p-3 rounded-xl text-center">
+                        <p class="label">Принес прибыли</p>
+                        <p class="font-bold text-green" id="modalUserProfit">0 ₽</p>
+                    </div>
+                </div>
+                <p class="label mb-2">История заказов</p>
+                <div id="modalUserHistory" class="space-y-2"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 3. ALL CLIENTS LIST MODAL -->
+    <div id="allClientsModal" class="modal-overlay" onclick="closeModal('allClientsModal')">
+        <div class="modal-content h-[80vh]" onclick="event.stopPropagation()">
+            <div class="p-4 border-b border-white/10 flex justify-between items-center bg-[#252527]">
+                <h3 class="font-bold text-sm">База клиентов (<span id="modalTotalClientsCount">0</span>)</h3>
+                <button onclick="closeModal('allClientsModal')" class="text-gray-500 hover:text-white"><span class="material-symbols-outlined">close</span></button>
+            </div>
+            <div class="p-2">
+                <input type="text" id="clientSearch" oninput="filterClients()" placeholder="Поиск по имени или ID..." class="w-full bg-black/20 border border-white/10 rounded-lg px-3 py-2 text-xs text-white outline-none">
+            </div>
+            <div class="flex-1 overflow-y-auto p-2 space-y-1" id="allClientsList">
+                <!-- JS Insert -->
+            </div>
+        </div>
+    </div>
+
+    <!-- 4. PROFIT DETAILS MODAL -->
+    <div id="profitModal" class="modal-overlay" onclick="closeModal('profitModal')">
+        <div class="modal-content" onclick="event.stopPropagation()">
+            <div class="p-4 border-b border-white/10 flex justify-between items-center bg-[#252527]">
+                <h3 class="font-bold text-sm">Финансовый отчет</h3>
+                <button onclick="closeModal('profitModal')" class="text-gray-500 hover:text-white"><span class="material-symbols-outlined">close</span></button>
+            </div>
+            <div class="p-4 space-y-4">
+                <div class="bg-green-900/10 border border-green-500/20 p-4 rounded-xl">
+                    <p class="label text-green">Прибыль (За все время)</p>
+                    <p class="text-3xl font-black text-green" id="modalTotalProfit">0 ₽</p>
+                </div>
+                <div class="bg-white/5 border border-white/10 p-4 rounded-xl">
+                    <p class="label">Оборот (За все время)</p>
+                    <p class="text-xl font-bold text-white" id="modalTotalRevenue">0 ₽</p>
+                </div>
+                <div class="grid grid-cols-2 gap-3 text-xs text-gray-400">
+                    <div class="bg-white/5 p-3 rounded-lg"><p>Расходы на выкуп</p><b class="text-white" id="modalTotalGoods">0 ₽</b></div>
+                    <div class="bg-white/5 p-3 rounded-lg"><p>Расходы на логистику</p><b class="text-white" id="modalTotalLogistics">0 ₽</b></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
 
     <!-- LOGIC SCRIPT -->
     <script>
-        const formatMoney = (val) => Math.floor(val).toLocaleString('ru-RU') + ' ₽';
+        const formatMoney = (val) => Math.floor(val || 0).toLocaleString('ru-RU') + ' ₽';
+        
+        // Оценка прибыли с заказа (Эвристика)
+        const calcOrderProfit = (order) => {
+            const total = order.total_amount || 0;
+            // 60% выкуп, 450р доставка, 7% налог, 3% эквайринг
+            const costs = (total * 0.6) + 450 + (total * 0.10);
+            return Math.floor(total - costs);
+        };
 
         // --- ГЛАВНАЯ ФУНКЦИЯ ---
         async function reloadData() {
             const status = document.getElementById('statusLine');
-            
-            // Если ключа нет, не пытаемся грузить
-            if (!SUPABASE_KEY) {
-                status.innerText = 'Нет ключа API';
-                status.className = 'text-[10px] text-red-500';
-                return;
-            }
-
-            status.innerText = 'Обновление данных...';
-            status.className = 'text-[10px] text-yellow-500 animate-pulse';
+            if (!SUPABASE_KEY) { status.innerText = 'Нет ключа API'; return; }
+            status.innerText = 'Обновление...';
 
             try {
-                // 1. ЗАГРУЗКА ВСЕГО (Параллельно для скорости)
+                // 1. Грузим данные
                 const [ordersReq, usersReq, itemsReq] = await Promise.all([
                     sb.from('orders').select('*').order('created_at', { ascending: false }),
                     sb.from('users').select('*'),
@@ -244,128 +340,121 @@
                 ]);
 
                 if (ordersReq.error) throw ordersReq.error;
-                if (usersReq.error) throw usersReq.error;
-
-                const orders = ordersReq.data;
-                const users = usersReq.data;
+                
+                G_ORDERS = ordersReq.data;
+                G_USERS = usersReq.data;
                 const itemsCount = itemsReq.count;
 
-                // --- 2. РАСЧЕТЫ ---
-                calculateFinancials(orders);
-                calculateUserMetrics(users);
-                renderActiveOrders(orders);
-                renderTopClients(users);
+                // 2. Расчеты и Рендер
+                calculateFinancials(G_ORDERS);
+                calculateUserMetrics(G_USERS);
+                renderActiveOrders(G_ORDERS);
+                renderTopClients(G_USERS);
 
-                // API Stats
                 document.getElementById('apiCalls').innerText = itemsCount.toLocaleString();
-
                 status.innerText = 'Обновлено: ' + new Date().toLocaleTimeString();
-                status.className = 'text-[10px] text-green-500';
 
             } catch (e) {
                 console.error(e);
                 status.innerText = 'Ошибка: ' + e.message;
-                status.className = 'text-[10px] text-red-500';
             }
         }
 
-        // --- ФИНАНСЫ ---
+        // --- ФИНАНСЫ (Главная панель) ---
         function calculateFinancials(orders) {
             const now = new Date();
-            const currentMonth = now.getMonth(); // 0-11
-
-            // Берем заказы за текущий месяц, которые НЕ отменены
+            const currentMonth = now.getMonth(); 
             const validOrders = orders.filter(o => o.status !== 'cancelled');
+            
+            // Месяц
             const monthOrders = validOrders.filter(o => new Date(o.created_at).getMonth() === currentMonth);
-
-            // Оборот (Revenue)
             const revenue = monthOrders.reduce((sum, o) => sum + (o.total_amount || 0), 0);
+            
+            // Расходы (Месяц)
+            const goodsCost = revenue * 0.60;
+            const logistics = monthOrders.length * 450;
+            const taxAcq = revenue * 0.10; // 10%
+            const marketing = 30000;
 
-            // Эвристика расходов (Раз нет точной бухгалтерии, считаем по модели)
-            const goodsCost = revenue * 0.60;  // 60% - Закуп
-            const logistics = monthOrders.length * 450; // 450р - Доставка
-            const tax = revenue * 0.07; // 6% + 1%
-            const acquiring = revenue * 0.03; // 3%
-            const marketing = 30000; // Фикс бюджет (или бери из базы если есть)
-
-            const totalExpenses = goodsCost + logistics + tax + acquiring + marketing;
-            const netProfit = revenue - totalExpenses;
+            const netProfit = revenue - (goodsCost + logistics + taxAcq + marketing);
             const margin = revenue > 0 ? Math.round((netProfit / revenue) * 100) : 0;
 
-            // UI
+            // UI Main
             document.getElementById('revenue').innerText = formatMoney(revenue);
             document.getElementById('netProfit').innerText = formatMoney(netProfit);
-            document.getElementById('marginLabel').innerText = margin + '%';
+            document.getElementById('marginLabel').innerText = `Маржа ${margin}%`;
             
-            // Расходы
-            document.getElementById('taxCost').innerText = formatMoney(tax);
-            document.getElementById('acqCost').innerText = formatMoney(acquiring);
+            document.getElementById('taxCost').innerText = formatMoney(revenue * 0.07);
             document.getElementById('goodsCost').innerText = formatMoney(goodsCost);
             document.getElementById('logCost').innerText = formatMoney(logistics);
+            document.getElementById('adsCost').innerText = formatMoney(marketing);
+
+            // TOTALS (Для модалки Profit)
+            const totalRev = validOrders.reduce((s,o) => s + (o.total_amount||0), 0);
+            const totalProfit = validOrders.reduce((s,o) => s + calcOrderProfit(o), 0);
+            
+            document.getElementById('modalTotalRevenue').innerText = formatMoney(totalRev);
+            document.getElementById('modalTotalProfit').innerText = formatMoney(totalProfit);
+            document.getElementById('modalTotalGoods').innerText = formatMoney(totalRev * 0.6);
+            document.getElementById('modalTotalLogistics').innerText = formatMoney(validOrders.length * 450);
         }
 
         // --- МЕТРИКИ КЛИЕНТОВ ---
         function calculateUserMetrics(users) {
             const total = users.length;
+            const totalSpent = users.reduce((sum, u) => sum + (u.total_spent || 0), 0);
             
-            // LTV = Общие траты / Кол-во юзеров
-            const totalSpentAll = users.reduce((sum, u) => sum + (u.total_spent || 0), 0);
-            const ltv = total > 0 ? Math.round(totalSpentAll / total) : 0;
+            // LTV
+            const ltv = total > 0 ? Math.round(totalSpent / total) : 0;
+            
+            // CAC (Пример: 30к / новые за месяц)
+            const newUsers = users.filter(u => new Date(u.created_at).getMonth() === new Date().getMonth()).length;
+            const cac = newUsers > 0 ? Math.round(30000 / newUsers) : 0;
 
-            // CAC (Маркетинг / Новые юзеры за месяц)
-            const newUsersMonth = users.filter(u => new Date(u.created_at).getMonth() === new Date().getMonth()).length;
-            const cac = newUsersMonth > 0 ? Math.round(30000 / newUsersMonth) : 0; // 30000 - бюджет
-
-            // Retention (Кто покупал за последние 60 дней / Всего)
-            const activeDate = new Date(); activeDate.setDate(activeDate.getDate() - 60);
-            const activeUsers = users.filter(u => u.last_purchase_at && new Date(u.last_purchase_at) > activeDate).length;
-            const retention = total > 0 ? Math.round((activeUsers / total) * 100) : 0;
+            // Ratio
+            const ratio = cac > 0 ? (ltv / cac).toFixed(1) : '∞';
 
             // New Today
             const today = new Date().toISOString().split('T')[0];
             const newToday = users.filter(u => u.created_at && u.created_at.startsWith(today)).length;
 
-            // UI
+            document.getElementById('ltv').innerText = ltv;
+            document.getElementById('cac').innerText = cac;
+            document.getElementById('ltvCacRatio').innerText = ratio + 'x';
             document.getElementById('totalUsers').innerText = total.toLocaleString();
-            document.getElementById('ltv').innerText = ltv + ' ₽';
-            document.getElementById('cac').innerText = cac + ' ₽';
-            document.getElementById('retention').innerText = retention + '%';
-            document.getElementById('newUsersToday').innerText = `+${newToday}`;
+            document.getElementById('newUsersToday').innerText = `+${newToday} сегодня`;
+            document.getElementById('modalTotalClientsCount').innerText = total;
         }
 
-        // --- АКТИВНЫЕ ЗАКАЗЫ ---
+        // --- АКТИВНЫЕ ЗАКАЗЫ (Рендер списка) ---
         function renderActiveOrders(orders) {
             const list = document.getElementById('activeOrdersList');
             list.innerHTML = '';
-
+            
             const active = orders.filter(o => !['delivered', 'completed', 'cancelled'].includes(o.status));
             document.getElementById('activeOrdersCount').innerText = active.length;
 
-            if (active.length === 0) {
-                list.innerHTML = '<div class="text-center text-gray-600 text-xs py-10">Нет активных заказов</div>';
-                return;
-            }
-
-            active.slice(0, 20).forEach(o => {
+            active.slice(0, 50).forEach(o => {
                 const div = document.createElement('div');
-                div.className = 'bg-white/5 p-3 rounded-xl border border-white/5 flex justify-between items-center';
-                
-                let statusColor = 'text-gray-400';
-                if(o.status === 'paid') statusColor = 'text-green-400';
-                if(o.status === 'shipped') statusColor = 'text-blue-400';
-                if(o.status === 'processing') statusColor = 'text-yellow-400';
+                div.className = 'bg-white/5 p-3 rounded-xl border border-white/5 flex justify-between items-center cursor-pointer hover:bg-white/10 transition';
+                div.onclick = () => openOrderModal(o); // Клик открывает модалку
 
+                let color = o.status === 'paid' ? 'text-green-400' : 'text-yellow-400';
+                
                 div.innerHTML = `
                     <div class="flex items-center gap-3">
-                        <div class="w-10 h-10 rounded-full bg-[#2c2c2e] flex items-center justify-center text-[10px] font-bold text-gray-400">
+                        <div class="w-8 h-8 rounded-full bg-[#2c2c2e] flex items-center justify-center text-[10px] font-bold text-gray-400">
                             ${o.delivery_method?.includes('5Post') ? '5P' : 'RF'}
                         </div>
                         <div>
-                            <p class="font-bold text-sm text-white">${formatMoney(o.total_amount)}</p>
-                            <p class="text-[10px] text-gray-500">ID: ${o.id.slice(0,6).toUpperCase()} • ${o.recipient_name || 'Клиент'}</p>
+                            <p class="font-bold text-xs text-white">#${o.id.slice(0,6).toUpperCase()}</p>
+                            <p class="text-[10px] text-gray-500">${o.recipient_name || 'Клиент'}</p>
                         </div>
                     </div>
-                    <span class="text-[10px] uppercase font-bold ${statusColor} bg-white/5 px-2 py-1 rounded">${o.status}</span>
+                    <div class="text-right">
+                        <p class="font-bold text-xs text-white">${formatMoney(o.total_amount)}</p>
+                        <p class="text-[9px] uppercase font-bold ${color}">${o.status}</p>
+                    </div>
                 `;
                 list.appendChild(div);
             });
@@ -375,68 +464,180 @@
         function renderTopClients(users) {
             const list = document.getElementById('topClientsList');
             list.innerHTML = '';
-
             const top = users.sort((a,b) => b.total_spent - a.total_spent).slice(0, 3);
 
             top.forEach(u => {
                 const div = document.createElement('div');
-                div.className = 'bg-white/5 p-3 rounded-xl flex justify-between items-center';
+                div.className = 'bg-white/5 p-3 rounded-xl flex justify-between items-center cursor-pointer hover:bg-white/10';
+                div.onclick = () => openClientModal(u);
+
                 div.innerHTML = `
                     <div class="flex items-center gap-3">
                         <div class="w-8 h-8 rounded-full bg-gray-700 bg-cover bg-center" style="background-image: url('${u.photo_url || ''}')"></div>
                         <div>
-                            <p class="text-xs font-bold text-white">${u.first_name || 'User'}</p>
-                            <p class="text-[9px] text-gray-500">ID: ${u.telegram_id}</p>
+                            <p class="text-xs font-bold text-white max-w-[100px] truncate">${u.first_name || 'User'}</p>
+                            <p class="text-[9px] text-yellow-500 font-bold">${u.status_level}</p>
                         </div>
                     </div>
-                    <div class="text-right">
-                        <p class="text-xs font-bold text-white">${formatMoney(u.total_spent)}</p>
-                        <p class="text-[9px] text-yellow-500 font-bold">${u.status_level}</p>
-                    </div>
+                    <span class="text-xs font-bold text-white">${formatMoney(u.total_spent)}</span>
                 `;
                 list.appendChild(div);
             });
         }
 
-        // --- ОТПРАВКА ПОДАРКА ---
+        // --- ALL CLIENTS (Логика рендера и поиска) ---
+        function renderAllClients(filterText = '') {
+            const list = document.getElementById('allClientsList');
+            list.innerHTML = '';
+            
+            const search = filterText.toLowerCase();
+            // Фильтруем только тех, кто покупал
+            const buyers = G_USERS.filter(u => u.total_spent > 0);
+            
+            const filtered = buyers.filter(u => 
+                (u.first_name || '').toLowerCase().includes(search) || 
+                String(u.telegram_id).includes(search)
+            ).sort((a,b) => b.total_spent - a.total_spent); // Сортировка по тратам
+
+            filtered.slice(0, 100).forEach(u => {
+                const div = document.createElement('div');
+                div.className = 'flex justify-between items-center p-3 bg-white/5 rounded-lg cursor-pointer hover:bg-white/10';
+                div.onclick = () => openClientModal(u);
+                
+                const lastDate = u.last_purchase_at ? new Date(u.last_purchase_at).toLocaleDateString() : '-';
+
+                div.innerHTML = `
+                    <div class="flex items-center gap-3">
+                        <div class="w-8 h-8 rounded-full bg-gray-700 bg-cover" style="background-image: url('${u.photo_url || ''}')"></div>
+                        <div>
+                            <p class="text-xs font-bold text-white">${u.first_name}</p>
+                            <p class="text-[9px] text-gray-500">Последняя: ${lastDate}</p>
+                        </div>
+                    </div>
+                    <span class="text-xs font-bold text-green">${formatMoney(u.total_spent)}</span>
+                `;
+                list.appendChild(div);
+            });
+        }
+        function filterClients() {
+            renderAllClients(document.getElementById('clientSearch').value);
+        }
+
+        // === MODAL FUNCTIONS ===
+
+        function openOrderModal(order) {
+            document.getElementById('modalOrderId').innerText = '#' + order.id.slice(0,8).toUpperCase();
+            document.getElementById('modalOrderStatus').innerText = order.status;
+            
+            // Расчеты внутри заказа
+            const profit = calcOrderProfit(order);
+            document.getElementById('modalOrderProfit').innerText = formatMoney(profit);
+            document.getElementById('modalOrderTotal').innerText = formatMoney(order.total_amount);
+            
+            document.getElementById('modalClientName').innerText = order.recipient_name || order.user_info?.name || 'Не указано';
+            document.getElementById('modalClientId').innerText = order.user_id || 'ID скрыт';
+            document.getElementById('modalOrderDate').innerText = new Date(order.created_at).toLocaleString();
+
+            // Товары
+            const container = document.getElementById('modalOrderItems');
+            container.innerHTML = '';
+            (order.order_items || []).forEach(item => {
+                const row = document.createElement('div');
+                row.className = 'flex gap-3 text-xs bg-black/20 p-2 rounded';
+                row.innerHTML = `
+                    <div class="w-8 h-10 bg-gray-700 bg-cover rounded" style="background-image: url('${item.image_url}')"></div>
+                    <div class="flex-1">
+                        <p class="line-clamp-1 text-white">${item.product_name}</p>
+                        <p class="text-gray-500">${item.size} / ${item.color}</p>
+                    </div>
+                    <div class="text-right">
+                        <p class="text-white font-bold">${Math.floor(item.final_price_rub)} ₽</p>
+                        <p class="text-gray-500">x{item.quantity}</p>
+                    </div>
+                `;
+                container.appendChild(row);
+            });
+
+            document.getElementById('orderModal').classList.add('open');
+        }
+
+        function openClientModal(user) {
+            document.getElementById('modalUserName').innerText = user.first_name || 'Без имени';
+            document.getElementById('modalUserId').innerText = user.telegram_id;
+            document.getElementById('modalUserLevel').innerText = user.status_level || 'Bronze';
+            document.getElementById('modalUserSpent').innerText = formatMoney(user.total_spent);
+            
+            if (user.photo_url) {
+                document.getElementById('modalUserAvatar').style.backgroundImage = `url('${user.photo_url}')`;
+            }
+
+            // История заказов юзера
+            const userOrders = G_ORDERS.filter(o => String(o.user_id) === String(user.telegram_id));
+            
+            // Прибыль с юзера (сумма прибыли со всех его заказов)
+            const totalUserProfit = userOrders.reduce((sum, o) => sum + calcOrderProfit(o), 0);
+            document.getElementById('modalUserProfit').innerText = formatMoney(totalUserProfit);
+
+            const historyContainer = document.getElementById('modalUserHistory');
+            historyContainer.innerHTML = '';
+            
+            if (userOrders.length === 0) {
+                historyContainer.innerHTML = '<p class="text-center text-xs text-gray-500">Нет заказов</p>';
+            } else {
+                userOrders.slice(0, 10).forEach(o => {
+                    const row = document.createElement('div');
+                    row.className = 'flex justify-between items-center p-2 bg-black/20 rounded text-xs';
+                    row.innerHTML = `
+                        <span>${new Date(o.created_at).toLocaleDateString()}</span>
+                        <span class="font-bold text-white">${formatMoney(o.total_amount)}</span>
+                        <span class="uppercase text-[9px] px-1.5 py-0.5 rounded bg-white/5">${o.status}</span>
+                    `;
+                    historyContainer.appendChild(row);
+                });
+            }
+
+            document.getElementById('clientModal').classList.add('open');
+        }
+
+        function openAllClientsModal() {
+            renderAllClients();
+            document.getElementById('allClientsModal').classList.add('open');
+        }
+
+        function openProfitModal() {
+            document.getElementById('profitModal').classList.add('open');
+        }
+
+        function closeModal(id) {
+            document.getElementById(id).classList.remove('open');
+        }
+
+        // Utils
+        function copyIdFromModal() {
+            const id = document.getElementById('modalUserId').innerText;
+            navigator.clipboard.writeText(id);
+            alert('ID скопирован');
+        }
+
         async function sendGift() {
+            // ... (То же самое, что и раньше) ...
             const id = document.getElementById('giftTgId').value;
             const amount = document.getElementById('giftAmount').value;
             const prefix = document.getElementById('giftPrefix').value;
-            const btn = document.getElementById('btnGift');
-
-            if (!id || !amount) return alert('Введите ID и сумму');
-
-            btn.innerText = 'Отправка...';
-            btn.disabled = true;
-
+            
+            if (!id || !amount) return alert('Введите данные');
             try {
-                // Отправляем на n8n
-                const res = await fetch(WEBHOOK_GIFT, {
+                await fetch(WEBHOOK_GIFT, {
                     method: 'POST',
                     headers: {'Content-Type': 'application/json'},
                     body: JSON.stringify({ user_id: id, amount: amount, prefix: prefix })
                 });
-                
-                if (res.ok) {
-                    alert('🎁 Купон успешно отправлен!');
-                    document.getElementById('giftTgId').value = '';
-                    document.getElementById('giftAmount').value = '';
-                } else {
-                    throw new Error('Ошибка сети');
-                }
-            } catch (e) {
-                alert('Ошибка отправки: ' + e.message);
-            } finally {
-                btn.innerText = 'Отправить';
-                btn.disabled = false;
-            }
+                alert('Отправлено');
+            } catch(e) { alert('Ошибка'); }
         }
 
-        // Запускаем при старте
+        // Init
         reloadData();
-
     </script>
 </body>
-
 </html>

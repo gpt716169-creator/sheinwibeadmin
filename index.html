@@ -5,7 +5,6 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>WIBE Admin</title>
     
-    <!-- LIBRARIES -->
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -67,7 +66,6 @@
 </head>
 <body class="pb-safe">
 
-    <!-- ACCESS DENIED SCREEN -->
     <div id="accessDenied">
         <span class="material-symbols-outlined text-6xl text-red-500 mb-4">gpp_bad</span>
         <h1 class="text-2xl font-black">Доступ запрещен</h1>
@@ -85,16 +83,11 @@
             
             let userId = tg?.initDataUnsafe?.user?.id;
             
-            // Fallback для тестирования в браузере (если не в Telegram)
+            // Fallback для тестирования
             if (!userId) {
-                // Пытаемся найти ID в URL ?uid=...
                 const urlParams = new URLSearchParams(window.location.search);
                 if (urlParams.has('uid')) {
                     userId = parseInt(urlParams.get('uid'));
-                } else {
-                    // Если совсем нет ID, спрашиваем (ТОЛЬКО ДЛЯ ДЕБАГА, можно убрать)
-                    // const promptId = prompt("Admin Debug: Введите TG ID");
-                    // userId = parseInt(promptId);
                 }
             }
 
@@ -102,17 +95,12 @@
 
             if (!userId || !ALLOWED_ADMINS.includes(userId)) {
                 document.getElementById('accessDenied').style.display = 'flex';
-                document.body.style.overflow = 'hidden'; // Block scroll
-                throw new Error("Access Denied"); // Stop execution
+                document.body.style.overflow = 'hidden'; 
+                throw new Error("Access Denied"); 
             }
         }
         
-        // Запускаем проверку сразу
-        try {
-            checkAccess();
-        } catch (e) {
-            console.error("Access blocked");
-        }
+        try { checkAccess(); } catch (e) { console.error("Access blocked"); }
 
         // --- КОНФИГУРАЦИЯ ---
         const SUPABASE_URL = 'https://nneccwuagyietimdqmoa.supabase.co';
@@ -122,12 +110,10 @@
         const { createClient } = supabase;
         const sb = createClient(SUPABASE_URL, SUPABASE_KEY);
 
-        // Глобальные переменные данных
         let G_ORDERS = [];
         let G_USERS = [];
     </script>
 
-    <!-- HEADER -->
     <div class="sticky top-0 z-50 bg-black/80 backdrop-blur-xl border-b border-white/10 px-6 py-4 flex justify-between items-center">
         <div>
             <h1 class="text-xl font-black tracking-tight">WIBE <span class="text-blue">Admin</span></h1>
@@ -138,13 +124,10 @@
         </button>
     </div>
 
-    <!-- MAIN CONTENT -->
     <div class="p-4 max-w-6xl mx-auto space-y-4">
 
-        <!-- ROW 1: FINANCE & METRICS -->
         <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
             
-            <!-- PROFIT CARD (CLICKABLE) -->
             <div class="bento-card col-span-1 md:col-span-2 flex flex-col justify-between interactive cursor-pointer" onclick="openProfitModal()">
                 <div class="absolute right-0 top-0 p-6 opacity-10">
                     <span class="material-symbols-outlined text-8xl text-green">paid</span>
@@ -158,7 +141,6 @@
                     </div>
                 </div>
                 
-                <!-- Mini Cost Structure -->
                 <div class="grid grid-cols-4 gap-2 mt-6 pt-4 border-t border-white/10 opacity-70">
                     <div><p class="label">Выкуп (Факт)</p><p class="font-bold text-xs" id="goodsCost">0</p></div>
                     <div><p class="label">Логистика (Факт)</p><p class="font-bold text-xs" id="logCost">0</p></div>
@@ -167,7 +149,6 @@
                 </div>
             </div>
 
-            <!-- UNIT ECONOMICS -->
             <div class="flex flex-col gap-4">
                 <div class="bento-card flex-1 flex flex-col justify-center">
                     <p class="label text-blue">Unit Economics</p>
@@ -203,7 +184,6 @@
             </div>
         </div>
 
-        <!-- ROW 2: ACTIVE ORDERS -->
         <div class="bento-card min-h-[300px] flex flex-col">
             <div class="flex justify-between items-center mb-4">
                 <p class="label text-white">Активные заказы <span class="bg-white/10 px-1.5 rounded ml-1 text-white/70" id="activeOrdersCount">0</span></p>
@@ -213,48 +193,41 @@
             </div>
         </div>
 
-        <!-- ROW 3: TOP CLIENTS & ACTIONS -->
         <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <!-- Top Clients -->
             <div class="bento-card">
                 <p class="label mb-4 text-yellow-500 flex items-center gap-2"><span class="material-symbols-outlined text-sm">trophy</span> Топ клиентов (Platinum)</p>
-                <div class="space-y-3" id="topClientsList">
-                    <!-- JS Insert -->
-                </div>
+                <div class="space-y-3" id="topClientsList"></div>
             </div>
 
-            <!-- Quick Actions -->
-            <div class="bento-card bg-[#2c2c2e]">
-                <p class="label mb-3 text-white flex items-center gap-1"><span class="material-symbols-outlined text-sm text-pink-500">card_giftcard</span> Подарить купон</p>
-                <div class="space-y-2">
-                    <input id="giftTgId" type="text" placeholder="ID (12345...)" class="w-full bg-black/30 border border-white/10 rounded-lg px-3 py-2 text-xs text-white outline-none focus:border-green-500">
-                    <div class="flex gap-2">
-                        <input id="giftAmount" type="number" placeholder="Сумма" class="w-1/2 bg-black/30 border border-white/10 rounded-lg px-3 py-2 text-xs text-white outline-none">
-                        <select id="giftPrefix" class="w-1/2 bg-black/30 border border-white/10 rounded-lg px-2 py-2 text-xs text-white outline-none">
-                            <option value="GIFT">GIFT</option>
-                            <option value="VIP">VIP</option>
-                            <option value="SORRY">SORRY</option>
-                        </select>
+            <div class="bento-card bg-[#2c2c2e] flex flex-col justify-between">
+                <div>
+                    <p class="label mb-3 text-white flex items-center gap-1"><span class="material-symbols-outlined text-sm text-pink-500">card_giftcard</span> Подарить (Личный)</p>
+                    <div class="space-y-2">
+                        <input id="giftTgId" type="text" placeholder="ID (12345...)" class="w-full bg-black/30 border border-white/10 rounded-lg px-3 py-2 text-xs text-white outline-none focus:border-green-500">
+                        <div class="flex gap-2">
+                            <input id="giftAmount" type="number" placeholder="Сумма" class="w-1/2 bg-black/30 border border-white/10 rounded-lg px-3 py-2 text-xs text-white outline-none">
+                            <select id="giftPrefix" class="w-1/2 bg-black/30 border border-white/10 rounded-lg px-2 py-2 text-xs text-white outline-none">
+                                <option value="GIFT">GIFT</option>
+                                <option value="VIP">VIP</option>
+                                <option value="SORRY">SORRY</option>
+                            </select>
+                        </div>
+                        <button onclick="sendGift()" id="btnGift" class="w-full bg-white text-black font-bold text-xs py-2.5 rounded-lg active:scale-95 transition hover:bg-gray-200">
+                            Отправить
+                        </button>
                     </div>
-                    <button onclick="sendGift()" id="btnGift" class="w-full bg-white text-black font-bold text-xs py-2.5 rounded-lg active:scale-95 transition hover:bg-gray-200">
-                        Отправить
-                    </button>
                 </div>
-                
+
                 <div class="mt-4 pt-4 border-t border-white/10">
-                    <p class="label mb-1">Статистика API</p>
-                    <div class="flex justify-between items-center">
-                        <span class="text-xs text-gray-400">Товаров в базе</span>
-                        <span class="font-bold text-sm" id="apiCalls">0</span>
-                    </div>
+                    <p class="label mb-2 text-white flex items-center gap-1"><span class="material-symbols-outlined text-sm text-blue-400">confirmation_number</span> Общий купон</p>
+                    <button onclick="openCreateCouponModal()" class="w-full bg-white/10 text-white font-bold text-xs py-2.5 rounded-lg active:scale-95 transition hover:bg-white/20 flex items-center justify-center gap-2">
+                        <span class="material-symbols-outlined text-xs">add</span> Создать промокод
+                    </button>
                 </div>
             </div>
         </div>
     </div>
 
-    <!-- === MODALS === -->
-
-    <!-- 1. ORDER DETAILS MODAL -->
     <div id="orderModal" class="modal-overlay" onclick="closeModal('orderModal')">
         <div class="modal-content overflow-hidden" onclick="event.stopPropagation()">
             <div class="p-4 border-b border-white/10 flex justify-between items-center bg-[#252527]">
@@ -262,12 +235,10 @@
                 <button onclick="closeModal('orderModal')" class="text-gray-500 hover:text-white"><span class="material-symbols-outlined">close</span></button>
             </div>
             <div class="p-4 overflow-y-auto max-h-[60vh] space-y-4">
-                <!-- Статус -->
                 <div class="flex justify-between items-center bg-white/5 p-3 rounded-xl">
                     <span class="text-xs text-gray-400">Статус</span>
                     <span id="modalOrderStatus" class="text-xs font-bold px-2 py-1 rounded bg-white/10">...</span>
                 </div>
-                <!-- Финансы -->
                 <div class="grid grid-cols-2 gap-3">
                     <div class="bg-green-900/10 border border-green-500/20 p-3 rounded-xl">
                         <p class="label text-green">Чистая прибыль</p>
@@ -288,15 +259,13 @@
                         <p id="modalOrderShip" class="text-sm font-bold text-gray-300">-</p>
                     </div>
                 </div>
-                <!-- Клиент -->
                 <div class="bg-white/5 p-3 rounded-xl space-y-1">
                     <p class="label mb-2">Получатель</p>
                     <p class="text-xs text-white font-bold" id="modalClientName">Name</p>
-                    <p class="text-xs text-gray-300" id="modalClientPhone">Phone</p> <!-- Телефон -->
+                    <p class="text-xs text-gray-300" id="modalClientPhone">Phone</p>
                     <p class="text-xs text-gray-400">ID: <span id="modalClientId" class="select-all text-blue cursor-pointer">123</span></p>
                     <p class="text-xs text-gray-400" id="modalOrderDate">Date</p>
                 </div>
-                <!-- Товары -->
                 <div>
                     <p class="label mb-2">Товары</p>
                     <div id="modalOrderItems" class="space-y-2"></div>
@@ -305,7 +274,6 @@
         </div>
     </div>
 
-    <!-- 2. CLIENT DETAILS MODAL -->
     <div id="clientModal" class="modal-overlay" onclick="closeModal('clientModal')">
         <div class="modal-content overflow-hidden" onclick="event.stopPropagation()">
             <div class="p-6 pb-4 bg-[#252527] border-b border-white/10 text-center">
@@ -334,7 +302,6 @@
         </div>
     </div>
 
-    <!-- 3. ALL CLIENTS LIST MODAL -->
     <div id="allClientsModal" class="modal-overlay" onclick="closeModal('allClientsModal')">
         <div class="modal-content h-[80vh]" onclick="event.stopPropagation()">
             <div class="p-4 border-b border-white/10 flex justify-between items-center bg-[#252527]">
@@ -344,13 +311,10 @@
             <div class="p-2">
                 <input type="text" id="clientSearch" oninput="filterClients()" placeholder="Поиск по имени или ID..." class="w-full bg-black/20 border border-white/10 rounded-lg px-3 py-2 text-xs text-white outline-none">
             </div>
-            <div class="flex-1 overflow-y-auto p-2 space-y-1" id="allClientsList">
-                <!-- JS Insert -->
-            </div>
+            <div class="flex-1 overflow-y-auto p-2 space-y-1" id="allClientsList"></div>
         </div>
     </div>
 
-    <!-- 4. PROFIT DETAILS MODAL -->
     <div id="profitModal" class="modal-overlay" onclick="closeModal('profitModal')">
         <div class="modal-content" onclick="event.stopPropagation()">
             <div class="p-4 border-b border-white/10 flex justify-between items-center bg-[#252527]">
@@ -366,7 +330,6 @@
                     <p class="label">Оборот (За все время)</p>
                     <p class="text-xl font-bold text-white" id="modalTotalRevenue">0 ₽</p>
                 </div>
-                
                 <div class="grid grid-cols-2 gap-3 text-xs text-gray-400">
                     <div class="bg-white/5 p-3 rounded-lg"><p class="label">За этот год (2025)</p><b class="text-white text-lg" id="modalYearProfit">0 ₽</b></div>
                     <div class="bg-white/5 p-3 rounded-lg"><p class="label">Логистика (Всего)</p><b class="text-white" id="modalTotalLogistics">0 ₽</b></div>
@@ -375,32 +338,59 @@
         </div>
     </div>
 
+    <div id="createCouponModal" class="modal-overlay" onclick="closeModal('createCouponModal')">
+        <div class="modal-content" onclick="event.stopPropagation()">
+            <div class="p-4 border-b border-white/10 flex justify-between items-center bg-[#252527]">
+                <h3 class="font-bold text-sm">Создать общий промокод</h3>
+                <button onclick="closeModal('createCouponModal')" class="text-gray-500 hover:text-white"><span class="material-symbols-outlined">close</span></button>
+            </div>
+            <div class="p-4 space-y-4">
+                <div>
+                    <p class="label">Код (На латинице)</p>
+                    <input id="newCouponCode" type="text" placeholder="Пример: SUMMER2025" class="w-full bg-black/30 border border-white/10 rounded-lg px-3 py-3 text-sm font-bold text-white outline-none focus:border-blue-500 uppercase">
+                    <p class="text-[10px] text-gray-500 mt-1">Этот код пользователи будут вводить вручную.</p>
+                </div>
 
-    <!-- LOGIC SCRIPT -->
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <p class="label text-green">Скидка (₽)</p>
+                        <input id="newCouponAmount" type="number" placeholder="500" class="w-full bg-black/30 border border-white/10 rounded-lg px-3 py-2 text-white outline-none">
+                    </div>
+                    <div>
+                        <p class="label">Мин. заказ (₽)</p>
+                        <input id="newCouponMin" type="number" placeholder="1500" class="w-full bg-black/30 border border-white/10 rounded-lg px-3 py-2 text-white outline-none">
+                    </div>
+                </div>
+
+                <div>
+                    <p class="label">Лимит активаций</p>
+                    <input id="newCouponLimit" type="number" value="100" class="w-full bg-black/30 border border-white/10 rounded-lg px-3 py-2 text-white outline-none">
+                </div>
+
+                <button onclick="submitNewCoupon()" class="w-full bg-blue-600 text-white font-bold py-3 rounded-xl active:scale-95 transition hover:bg-blue-500 mt-2">
+                    Создать купон
+                </button>
+            </div>
+        </div>
+    </div>
+
     <script>
         const formatMoney = (val) => Math.floor(val || 0).toLocaleString('ru-RU') + ' ₽';
         
-        // --- НОВАЯ МАТЕМАТИКА ---
-        // Используем данные из таблицы orders: final_net_profit, actual_cost_rub, actual_shipping_cost_rub
+        // --- CALC FUNCTIONS ---
         const calcOrderProfit = (order) => {
-            // 1. Если есть точный расчет в базе - берем его
             if (order.final_net_profit != null && Number(order.final_net_profit) !== 0) {
                 return Number(order.final_net_profit);
             }
-            
-            // 2. Иначе пытаемся посчитать по ФАКТИЧЕСКИМ данным из таблицы
             const revenue = Number(order.total_amount) || 0;
             const costGoods = Number(order.actual_cost_rub) || 0;
             const costShip = Number(order.actual_shipping_cost_rub) || 0;
-            const tax = 0; // Налог обычно вычитается в final_net_profit, тут для ручного счета можно пока опустить или добавить 6%
-
-            // Если расходы еще не проставлены (равны 0), то расчет будет неверным (Прибыль = Выручка).
-            // В таком случае, чтобы не пугать "огромной прибылью", используем старую эвристику как временную заглушку (FALLBACK)
+            const tax = 0; 
+            
             if (costGoods === 0 && costShip === 0) {
                  const approxCosts = (revenue * 0.60) + 450 + (revenue * 0.10);
                  return Math.floor(revenue - approxCosts);
             }
-
             return revenue - costGoods - costShip - tax;
         };
 
@@ -411,14 +401,13 @@
             }
         };
 
-        // --- ГЛАВНАЯ ФУНКЦИЯ ---
+        // --- RELOAD DATA ---
         async function reloadData() {
             const status = document.getElementById('statusLine');
             if (!SUPABASE_KEY) { status.innerText = 'Нет ключа API'; return; }
             status.innerText = 'Обновление...';
 
             try {
-                // 1. Грузим данные (ИСПРАВЛЕНО: добавил order_items)
                 const [ordersReq, usersReq, itemsReq] = await Promise.all([
                     sb.from('orders').select('*, order_items(*)').order('created_at', { ascending: false }),
                     sb.from('users').select('*'),
@@ -432,7 +421,6 @@
                 G_USERS = usersReq.data;
                 const itemsCount = itemsReq.count;
 
-                // 2. Расчеты и Рендер
                 calculateFinancials(G_ORDERS);
                 calculateUserMetrics(G_USERS);
                 renderActiveOrders(G_ORDERS);
@@ -447,18 +435,16 @@
             }
         }
 
-        // --- ФИНАНСЫ (Главная панель) ---
         function calculateFinancials(orders) {
             const now = new Date();
             const currentMonth = now.getMonth(); 
             const currentYear = now.getFullYear();
             const validOrders = orders.filter(o => o.status !== 'cancelled');
             
-            // Месяц
+            // Month
             const monthOrders = validOrders.filter(o => new Date(o.created_at).getMonth() === currentMonth && new Date(o.created_at).getFullYear() === currentYear);
             const revenue = monthOrders.reduce((sum, o) => sum + (o.total_amount || 0), 0);
             
-            // Расходы (Месяц) - Считаем по ФАКТУ из базы
             let goodsCost = 0;
             let logistics = 0;
             let netProfit = 0;
@@ -469,36 +455,27 @@
                 netProfit += calcOrderProfit(o);
             });
 
-            // Если в базе совсем нет расходов (старая система), применяем эвристику для красивых графиков, 
-            // но если хоть где-то есть данные - верим базе.
-            // Для упрощения: если goodsCost == 0, значит данные не заполнены, считаем эвристически для дашборда
             if (goodsCost === 0 && revenue > 0) {
-                 goodsCost = revenue * 0.60; // Примерная заглушка
+                 goodsCost = revenue * 0.60;
                  logistics = monthOrders.length * 450;
             }
 
-            const taxAcq = revenue * 0.06; // УСН 6%
+            const taxAcq = revenue * 0.06;
             const marketing = 30000;
-
             const margin = revenue > 0 ? Math.round((netProfit / revenue) * 100) : 0;
 
-            // UI Main
             document.getElementById('revenue').innerText = formatMoney(revenue);
             document.getElementById('netProfit').innerText = formatMoney(netProfit);
             document.getElementById('marginLabel').innerText = `Маржа ${margin}%`;
-            
             document.getElementById('goodsCost').innerText = formatMoney(goodsCost);
             document.getElementById('logCost').innerText = formatMoney(logistics);
             document.getElementById('taxCost').innerText = formatMoney(taxAcq);
             document.getElementById('adsCost').innerText = formatMoney(marketing);
 
-            // TOTALS (Для модалки Profit)
             const totalRev = validOrders.reduce((s,o) => s + (o.total_amount||0), 0);
             const totalProfit = validOrders.reduce((s,o) => s + calcOrderProfit(o), 0);
             const yearOrders = validOrders.filter(o => new Date(o.created_at).getFullYear() === currentYear);
             const yearProfit = yearOrders.reduce((s,o) => s + calcOrderProfit(o), 0);
-            
-            // Общая логистика
             const totalLogistics = validOrders.reduce((s,o) => s + (Number(o.actual_shipping_cost_rub)||0), 0);
 
             document.getElementById('modalTotalRevenue').innerText = formatMoney(totalRev);
@@ -507,22 +484,13 @@
             document.getElementById('modalTotalLogistics').innerText = formatMoney(totalLogistics);
         }
 
-        // --- МЕТРИКИ КЛИЕНТОВ ---
         function calculateUserMetrics(users) {
             const total = users.length;
             const totalSpent = users.reduce((sum, u) => sum + (u.total_spent || 0), 0);
-            
-            // LTV
             const ltv = total > 0 ? Math.round(totalSpent / total) : 0;
-            
-            // CAC
             const newUsers = users.filter(u => new Date(u.created_at).getMonth() === new Date().getMonth()).length;
             const cac = newUsers > 0 ? Math.round(30000 / newUsers) : 0;
-
-            // Ratio
             const ratio = cac > 0 ? (ltv / cac).toFixed(1) : '∞';
-
-            // New Today
             const today = new Date().toISOString().split('T')[0];
             const newToday = users.filter(u => u.created_at && u.created_at.startsWith(today)).length;
 
@@ -534,7 +502,6 @@
             document.getElementById('modalTotalClientsCount').innerText = total;
         }
 
-        // --- АКТИВНЫЕ ЗАКАЗЫ (Рендер списка) ---
         function renderActiveOrders(orders) {
             const list = document.getElementById('activeOrdersList');
             list.innerHTML = '';
@@ -546,7 +513,6 @@
                 const div = document.createElement('div');
                 div.className = 'bg-white/5 p-3 rounded-xl border border-white/5 flex justify-between items-center cursor-pointer hover:bg-white/10 transition';
                 div.onclick = () => openOrderModal(o);
-
                 let color = o.status === 'paid' ? 'text-green-400' : 'text-yellow-400';
                 
                 div.innerHTML = `
@@ -568,7 +534,6 @@
             });
         }
 
-        // --- ТОП КЛИЕНТЫ ---
         function renderTopClients(users) {
             const list = document.getElementById('topClientsList');
             list.innerHTML = '';
@@ -578,7 +543,6 @@
                 const div = document.createElement('div');
                 div.className = 'bg-white/5 p-3 rounded-xl flex justify-between items-center cursor-pointer hover:bg-white/10';
                 div.onclick = () => openClientModal(u);
-
                 div.innerHTML = `
                     <div class="flex items-center gap-3">
                         <div class="w-8 h-8 rounded-full bg-gray-700 bg-cover bg-center" style="background-image: url('${u.photo_url || ''}')"></div>
@@ -593,11 +557,9 @@
             });
         }
 
-        // --- ALL CLIENTS ---
         function renderAllClients(filterText = '') {
             const list = document.getElementById('allClientsList');
             list.innerHTML = '';
-            
             const search = filterText.toLowerCase();
             const filtered = G_USERS.filter(u => 
                 (u.first_name || '').toLowerCase().includes(search) || 
@@ -608,10 +570,8 @@
                 const div = document.createElement('div');
                 div.className = 'flex justify-between items-center p-3 bg-white/5 rounded-lg cursor-pointer hover:bg-white/10';
                 div.onclick = () => openClientModal(u);
-                
                 const lastDate = u.last_purchase_at ? new Date(u.last_purchase_at).toLocaleDateString() : '-';
                 const amountColor = u.total_spent > 0 ? 'text-green' : 'text-gray-500';
-
                 div.innerHTML = `
                     <div class="flex items-center gap-3">
                         <div class="w-8 h-8 rounded-full bg-gray-700 bg-cover" style="background-image: url('${u.photo_url || ''}')"></div>
@@ -625,27 +585,23 @@
                 list.appendChild(div);
             });
         }
+
         function filterClients() {
             renderAllClients(document.getElementById('clientSearch').value);
         }
 
-        // === MODAL FUNCTIONS ===
+        // === MODALS & ACTIONS ===
 
         function openOrderModal(order) {
             document.getElementById('modalOrderId').innerText = '#' + order.id.slice(0,8).toUpperCase();
             document.getElementById('modalOrderStatus').innerText = order.status;
-            
             const profit = calcOrderProfit(order);
             const costs = getOrderCosts(order);
-
             document.getElementById('modalOrderProfit').innerText = formatMoney(profit);
             document.getElementById('modalOrderTotal').innerText = formatMoney(order.total_amount);
-            
-            // Показываем себестоимость и доставку в модалке
             document.getElementById('modalOrderCost').innerText = costs.goods ? formatMoney(costs.goods) : 'Нет данных';
             document.getElementById('modalOrderShip').innerText = costs.ship ? formatMoney(costs.ship) : 'Нет данных';
             
-            // ПРИОРИТЕТ полей: contact_name -> recipient_name -> user_info.name
             const name = order.contact_name || order.recipient_name || order.user_info?.name || 'Не указано';
             const phone = order.contact_phone || order.recipient_phone || order.user_info?.phone || '';
 
@@ -672,7 +628,6 @@
                 `;
                 container.appendChild(row);
             });
-
             document.getElementById('orderModal').classList.add('open');
         }
 
@@ -681,10 +636,7 @@
             document.getElementById('modalUserId').innerText = user.telegram_id;
             document.getElementById('modalUserLevel').innerText = user.status_level || 'Bronze';
             document.getElementById('modalUserSpent').innerText = formatMoney(user.total_spent);
-            
-            if (user.photo_url) {
-                document.getElementById('modalUserAvatar').style.backgroundImage = `url('${user.photo_url}')`;
-            }
+            if (user.photo_url) document.getElementById('modalUserAvatar').style.backgroundImage = `url('${user.photo_url}')`;
 
             const userOrders = G_ORDERS.filter(o => String(o.telegram_id) === String(user.telegram_id));
             const totalUserProfit = userOrders.reduce((sum, o) => sum + calcOrderProfit(o), 0);
@@ -692,7 +644,6 @@
 
             const historyContainer = document.getElementById('modalUserHistory');
             historyContainer.innerHTML = '';
-            
             if (userOrders.length === 0) {
                 historyContainer.innerHTML = '<p class="text-center text-xs text-gray-500">Нет заказов</p>';
             } else {
@@ -707,7 +658,6 @@
                     historyContainer.appendChild(row);
                 });
             }
-
             document.getElementById('clientModal').classList.add('open');
         }
 
@@ -734,7 +684,6 @@
             const id = document.getElementById('giftTgId').value;
             const amount = document.getElementById('giftAmount').value;
             const prefix = document.getElementById('giftPrefix').value;
-            
             if (!id || !amount) return alert('Введите данные');
             try {
                 await fetch(WEBHOOK_GIFT, {
@@ -744,6 +693,53 @@
                 });
                 alert('Отправлено');
             } catch(e) { alert('Ошибка'); }
+        }
+
+        // --- NEW COUPON LOGIC ---
+        function openCreateCouponModal() {
+            document.getElementById('newCouponCode').value = '';
+            document.getElementById('newCouponAmount').value = '';
+            document.getElementById('newCouponMin').value = '0';
+            document.getElementById('newCouponLimit').value = '100';
+            document.getElementById('createCouponModal').classList.add('open');
+        }
+
+        async function submitNewCoupon() {
+            const code = document.getElementById('newCouponCode').value.trim().toUpperCase();
+            const amount = document.getElementById('newCouponAmount').value;
+            const minOrder = document.getElementById('newCouponMin').value || 0;
+            const limit = document.getElementById('newCouponLimit').value || 100;
+
+            if (!code || !amount) {
+                alert('Пожалуйста, введите Код и Сумму скидки');
+                return;
+            }
+
+            if (confirm(`Создать скрытый купон "${code}" на скидку ${amount}₽ (от ${minOrder}₽)?`)) {
+                try {
+                    const { data, error } = await sb.from('coupons').insert([{
+                        code: code,
+                        discount_amount: Number(amount),
+                        min_order_amount: Number(minOrder),
+                        usage_limit: Number(limit),
+                        is_public: false, 
+                        is_active: true,
+                        type: 'fixed',
+                        used_count: 0
+                    }]);
+
+                    if (error) {
+                        if (error.code === '23505') alert('Ошибка: Такой промокод уже существует!');
+                        else throw error;
+                    } else {
+                        alert('✅ Промокод успешно создан!');
+                        closeModal('createCouponModal');
+                    }
+                } catch (e) {
+                    console.error(e);
+                    alert('Ошибка при создании: ' + e.message);
+                }
+            }
         }
 
         // Init

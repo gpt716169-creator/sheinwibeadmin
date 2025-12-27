@@ -426,6 +426,7 @@
                 ]);
 
                 if (ordersReq.error) throw ordersReq.error;
+                if (usersReq.error) throw usersReq.error;
                 
                 G_ORDERS = ordersReq.data;
                 G_USERS = usersReq.data;
@@ -746,7 +747,9 @@
         }
 
         // Init
-        // reloadData(); // Запуск теперь внутри body, но можно оставить
+        if (document.getElementById('accessDenied').style.display !== 'flex') {
+            reloadData();
+        }
     </script>
 </body>
 </html>

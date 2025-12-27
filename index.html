@@ -6,6 +6,7 @@
     <title>WIBE Admin</title>
     
     <!-- LIBRARIES -->
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700;800&display=swap" rel="stylesheet">
@@ -45,6 +46,13 @@
         }
         .modal-overlay.open .modal-content { transform: scale(1); }
 
+        /* ACCESS DENIED */
+        #accessDenied {
+            position: fixed; inset: 0; z-index: 9999; background: #000;
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            display: none; /* Hidden by default */
+        }
+
         /* UTILS */
         .label { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: #8e8e93; margin-bottom: 4px; }
         .text-green { color: #30d158; }
@@ -59,13 +67,56 @@
 </head>
 <body class="pb-safe">
 
+    <!-- ACCESS DENIED SCREEN -->
+    <div id="accessDenied">
+        <span class="material-symbols-outlined text-6xl text-red-500 mb-4">gpp_bad</span>
+        <h1 class="text-2xl font-black">Доступ запрещен</h1>
+        <p class="text-gray-500 text-sm mt-2">Ваш ID не найден в списке администраторов.</p>
+        <p class="text-gray-700 text-xs mt-4 font-mono" id="currentIdDisplay">ID: ...</p>
+    </div>
+
     <script>
+        // --- SECURITY CHECK ---
+        const ALLOWED_ADMINS = [1074302521, 1332986231];
+        
+        function checkAccess() {
+            const tg = window.Telegram?.WebApp;
+            tg?.expand();
+            
+            let userId = tg?.initDataUnsafe?.user?.id;
+            
+            // Fallback для тестирования в браузере (если не в Telegram)
+            if (!userId) {
+                // Пытаемся найти ID в URL ?uid=...
+                const urlParams = new URLSearchParams(window.location.search);
+                if (urlParams.has('uid')) {
+                    userId = parseInt(urlParams.get('uid'));
+                } else {
+                    // Если совсем нет ID, спрашиваем (ТОЛЬКО ДЛЯ ДЕБАГА, можно убрать)
+                    // const promptId = prompt("Admin Debug: Введите TG ID");
+                    // userId = parseInt(promptId);
+                }
+            }
+
+            document.getElementById('currentIdDisplay').innerText = `ID: ${userId || 'Не определен'}`;
+
+            if (!userId || !ALLOWED_ADMINS.includes(userId)) {
+                document.getElementById('accessDenied').style.display = 'flex';
+                document.body.style.overflow = 'hidden'; // Block scroll
+                throw new Error("Access Denied"); // Stop execution
+            }
+        }
+        
+        // Запускаем проверку сразу
+        try {
+            checkAccess();
+        } catch (e) {
+            console.error("Access blocked");
+        }
+
         // --- КОНФИГУРАЦИЯ ---
         const SUPABASE_URL = 'https://nneccwuagyietimdqmoa.supabase.co';
-        
-        // ВАЖНО: Service Role Key (для полного доступа к данным)
         const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5uZWNjd3VhZ3lpZXRpbWRxbW9hIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc2NTUzMTE2NCwiZXhwIjoyMDgxMTA3MTY0fQ.AGKhn9yCRagMk7XdNWlJ0O5Qd8ZjOehReOkap_VzjQ4'; 
-        
         const WEBHOOK_GIFT = 'https://proshein.com/webhook/admin-gift';
         
         const { createClient } = supabase;
@@ -109,10 +160,10 @@
                 
                 <!-- Mini Cost Structure -->
                 <div class="grid grid-cols-4 gap-2 mt-6 pt-4 border-t border-white/10 opacity-70">
-                    <div><p class="label">Налог</p><p class="font-bold text-xs" id="taxCost">0</p></div>
-                    <div><p class="label">Выкуп</p><p class="font-bold text-xs" id="goodsCost">0</p></div>
-                    <div><p class="label">Доставка</p><p class="font-bold text-xs" id="logCost">0</p></div>
-                    <div><p class="label">Реклама</p><p class="font-bold text-xs" id="adsCost">0</p></div>
+                    <div><p class="label">Выкуп (Факт)</p><p class="font-bold text-xs" id="goodsCost">0</p></div>
+                    <div><p class="label">Логистика (Факт)</p><p class="font-bold text-xs" id="logCost">0</p></div>
+                    <div><p class="label">Налог (6%)</p><p class="font-bold text-xs" id="taxCost">0</p></div>
+                    <div><p class="label">Маркетинг</p><p class="font-bold text-xs" id="adsCost">30k</p></div>
                 </div>
             </div>
 
@@ -227,6 +278,16 @@
                         <p id="modalOrderTotal" class="text-lg font-bold text-white">0 ₽</p>
                     </div>
                 </div>
+                <div class="grid grid-cols-2 gap-3">
+                    <div class="bg-white/5 p-3 rounded-xl">
+                        <p class="label">Себестоимость</p>
+                        <p id="modalOrderCost" class="text-sm font-bold text-gray-300">-</p>
+                    </div>
+                    <div class="bg-white/5 p-3 rounded-xl">
+                        <p class="label">Логистика</p>
+                        <p id="modalOrderShip" class="text-sm font-bold text-gray-300">-</p>
+                    </div>
+                </div>
                 <!-- Клиент -->
                 <div class="bg-white/5 p-3 rounded-xl space-y-1">
                     <p class="label mb-2">Получатель</p>
@@ -319,11 +380,35 @@
     <script>
         const formatMoney = (val) => Math.floor(val || 0).toLocaleString('ru-RU') + ' ₽';
         
-        // Оценка прибыли с заказа (Эвристика: 60% выкуп + 450р доставка + 10% налоги)
+        // --- НОВАЯ МАТЕМАТИКА ---
+        // Используем данные из таблицы orders: final_net_profit, actual_cost_rub, actual_shipping_cost_rub
         const calcOrderProfit = (order) => {
-            const total = order.total_amount || 0;
-            const costs = (total * 0.6) + 450 + (total * 0.10);
-            return Math.floor(total - costs);
+            // 1. Если есть точный расчет в базе - берем его
+            if (order.final_net_profit != null && Number(order.final_net_profit) !== 0) {
+                return Number(order.final_net_profit);
+            }
+            
+            // 2. Иначе пытаемся посчитать по ФАКТИЧЕСКИМ данным из таблицы
+            const revenue = Number(order.total_amount) || 0;
+            const costGoods = Number(order.actual_cost_rub) || 0;
+            const costShip = Number(order.actual_shipping_cost_rub) || 0;
+            const tax = 0; // Налог обычно вычитается в final_net_profit, тут для ручного счета можно пока опустить или добавить 6%
+
+            // Если расходы еще не проставлены (равны 0), то расчет будет неверным (Прибыль = Выручка).
+            // В таком случае, чтобы не пугать "огромной прибылью", используем старую эвристику как временную заглушку (FALLBACK)
+            if (costGoods === 0 && costShip === 0) {
+                 const approxCosts = (revenue * 0.60) + 450 + (revenue * 0.10);
+                 return Math.floor(revenue - approxCosts);
+            }
+
+            return revenue - costGoods - costShip - tax;
+        };
+
+        const getOrderCosts = (order) => {
+            return {
+                goods: Number(order.actual_cost_rub) || 0,
+                ship: Number(order.actual_shipping_cost_rub) || 0
+            }
         };
 
         // --- ГЛАВНАЯ ФУНКЦИЯ ---
@@ -372,13 +457,28 @@
             const monthOrders = validOrders.filter(o => new Date(o.created_at).getMonth() === currentMonth && new Date(o.created_at).getFullYear() === currentYear);
             const revenue = monthOrders.reduce((sum, o) => sum + (o.total_amount || 0), 0);
             
-            // Расходы (Месяц)
-            const goodsCost = revenue * 0.60;
-            const logistics = monthOrders.length * 450;
-            const taxAcq = revenue * 0.10; 
+            // Расходы (Месяц) - Считаем по ФАКТУ из базы
+            let goodsCost = 0;
+            let logistics = 0;
+            let netProfit = 0;
+
+            monthOrders.forEach(o => {
+                goodsCost += Number(o.actual_cost_rub) || 0;
+                logistics += Number(o.actual_shipping_cost_rub) || 0;
+                netProfit += calcOrderProfit(o);
+            });
+
+            // Если в базе совсем нет расходов (старая система), применяем эвристику для красивых графиков, 
+            // но если хоть где-то есть данные - верим базе.
+            // Для упрощения: если goodsCost == 0, значит данные не заполнены, считаем эвристически для дашборда
+            if (goodsCost === 0 && revenue > 0) {
+                 goodsCost = revenue * 0.60; // Примерная заглушка
+                 logistics = monthOrders.length * 450;
+            }
+
+            const taxAcq = revenue * 0.06; // УСН 6%
             const marketing = 30000;
 
-            const netProfit = revenue - (goodsCost + logistics + taxAcq + marketing);
             const margin = revenue > 0 ? Math.round((netProfit / revenue) * 100) : 0;
 
             // UI Main
@@ -386,9 +486,9 @@
             document.getElementById('netProfit').innerText = formatMoney(netProfit);
             document.getElementById('marginLabel').innerText = `Маржа ${margin}%`;
             
-            document.getElementById('taxCost').innerText = formatMoney(revenue * 0.07);
             document.getElementById('goodsCost').innerText = formatMoney(goodsCost);
             document.getElementById('logCost').innerText = formatMoney(logistics);
+            document.getElementById('taxCost').innerText = formatMoney(taxAcq);
             document.getElementById('adsCost').innerText = formatMoney(marketing);
 
             // TOTALS (Для модалки Profit)
@@ -397,10 +497,13 @@
             const yearOrders = validOrders.filter(o => new Date(o.created_at).getFullYear() === currentYear);
             const yearProfit = yearOrders.reduce((s,o) => s + calcOrderProfit(o), 0);
             
+            // Общая логистика
+            const totalLogistics = validOrders.reduce((s,o) => s + (Number(o.actual_shipping_cost_rub)||0), 0);
+
             document.getElementById('modalTotalRevenue').innerText = formatMoney(totalRev);
             document.getElementById('modalTotalProfit').innerText = formatMoney(totalProfit);
             document.getElementById('modalYearProfit').innerText = formatMoney(yearProfit);
-            document.getElementById('modalTotalLogistics').innerText = formatMoney(validOrders.length * 450);
+            document.getElementById('modalTotalLogistics').innerText = formatMoney(totalLogistics);
         }
 
         // --- МЕТРИКИ КЛИЕНТОВ ---
@@ -495,9 +598,7 @@
             list.innerHTML = '';
             
             const search = filterText.toLowerCase();
-            const buyers = G_USERS.filter(u => u.total_spent > 0);
-            
-            const filtered = buyers.filter(u => 
+            const filtered = G_USERS.filter(u => 
                 (u.first_name || '').toLowerCase().includes(search) || 
                 String(u.telegram_id).includes(search)
             ).sort((a,b) => b.total_spent - a.total_spent);
@@ -508,16 +609,17 @@
                 div.onclick = () => openClientModal(u);
                 
                 const lastDate = u.last_purchase_at ? new Date(u.last_purchase_at).toLocaleDateString() : '-';
+                const amountColor = u.total_spent > 0 ? 'text-green' : 'text-gray-500';
 
                 div.innerHTML = `
                     <div class="flex items-center gap-3">
                         <div class="w-8 h-8 rounded-full bg-gray-700 bg-cover" style="background-image: url('${u.photo_url || ''}')"></div>
                         <div>
-                            <p class="text-xs font-bold text-white">${u.first_name}</p>
-                            <p class="text-[9px] text-gray-500">Последняя: ${lastDate}</p>
+                            <p class="text-xs font-bold text-white">${u.first_name || 'Без имени'}</p>
+                            <p class="text-[9px] text-gray-500">Посл: ${lastDate}</p>
                         </div>
                     </div>
-                    <span class="text-xs font-bold text-green">${formatMoney(u.total_spent)}</span>
+                    <span class="text-xs font-bold ${amountColor}">${formatMoney(u.total_spent)}</span>
                 `;
                 list.appendChild(div);
             });
@@ -533,8 +635,14 @@
             document.getElementById('modalOrderStatus').innerText = order.status;
             
             const profit = calcOrderProfit(order);
+            const costs = getOrderCosts(order);
+
             document.getElementById('modalOrderProfit').innerText = formatMoney(profit);
             document.getElementById('modalOrderTotal').innerText = formatMoney(order.total_amount);
+            
+            // Показываем себестоимость и доставку в модалке
+            document.getElementById('modalOrderCost').innerText = costs.goods ? formatMoney(costs.goods) : 'Нет данных';
+            document.getElementById('modalOrderShip').innerText = costs.ship ? formatMoney(costs.ship) : 'Нет данных';
             
             // ПРИОРИТЕТ полей: contact_name -> recipient_name -> user_info.name
             const name = order.contact_name || order.recipient_name || order.user_info?.name || 'Не указано';
@@ -558,7 +666,7 @@
                     </div>
                     <div class="text-right">
                         <p class="text-white font-bold">${Math.floor(item.price_at_purchase || item.final_price_rub)} ₽</p>
-                        <p class="text-gray-500">x{item.quantity}</p>
+                        <p class="text-gray-500">x${item.quantity}</p>
                     </div>
                 `;
                 container.appendChild(row);
@@ -577,9 +685,7 @@
                 document.getElementById('modalUserAvatar').style.backgroundImage = `url('${user.photo_url}')`;
             }
 
-            // ИСПРАВЛЕНИЕ: Ищем по telegram_id
             const userOrders = G_ORDERS.filter(o => String(o.telegram_id) === String(user.telegram_id));
-            
             const totalUserProfit = userOrders.reduce((sum, o) => sum + calcOrderProfit(o), 0);
             document.getElementById('modalUserProfit').innerText = formatMoney(totalUserProfit);
 
@@ -640,7 +746,7 @@
         }
 
         // Init
-        reloadData();
+        // reloadData(); // Запуск теперь внутри body, но можно оставить
     </script>
 </body>
 </html>
